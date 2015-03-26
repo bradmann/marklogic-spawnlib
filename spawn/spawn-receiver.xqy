@@ -1,6 +1,6 @@
 xquery version "1.0-ml";
 
-import module namespace spawnlib = "http://marklogic.com/spawnlib" at "lib/spawnlib.xqy";
+import module namespace spawnlib = "http://marklogic.com/spawnlib" at "/spawn/lib/spawnlib.xqy";
 
 declare variable $map := map:map(xdmp:get-request-body('xml')/node());
 declare variable $q := map:get($map, 'query');

@@ -1,16 +1,13 @@
 xquery version "1.0-ml";
 
-import module namespace spawnlib = "http://marklogic.com/spawnlib" at "lib/spawnlib.xqy";
+import module namespace spawnlib = "http://marklogic.com/spawnlib" at "/spawn/lib/spawnlib.xqy";
+import module namespace json="http://marklogic.com/xdmp/json" at "/MarkLogic/json/json.xqy";
 
 xdmp:set-response-content-type("application/json"),
 try {
-	let $taskid := xdmp:get-request-field("taskid")
-	return
-		if ($taskid) then
-			'{"success": true, "progress": ' || fn:string(spawnlib:progress($taskid)) || '}'
-		else
-			'{"success": true, "progress": ' || fn:string(spawnlib:progress()) || '}'
+	let $job-id := xs:unsignedLong(xdmp:get-request-field("job-id"))
+	return json:transform-to-json(spawnlib:check-progress($job-id))
 } catch ($e) {
 	xdmp:log(xdmp:quote($e)),
-	'{"success": false, "error": "' || $e/*:message/text() || '"}'
+	'{"success": false, "message": "' || $e/*:message/text() || '"}'
 }

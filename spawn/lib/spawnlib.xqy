@@ -3,8 +3,12 @@ xquery version "1.0-ml";
 module namespace spawnlib = "http://marklogic.com/spawnlib";
 import module namespace admin = "http://marklogic.com/xdmp/admin" at "/MarkLogic/admin.xqy";
 import module namespace functx = "http://www.functx.com" at "/MarkLogic/functx/functx-1.0-nodoc-2007-01.xqy";
+import module namespace mem = "http://xqdev.com/in-mem-update" at "/MarkLogic/appservices/utils/in-mem-update.xqy";
+import module namespace config = "http://marklogic.com/spawnlib/config" at "../config.xqy";
 
 declare namespace eval = "xdmp:eval";
+
+declare variable $debug := fn:false();
 
 declare variable $CORB-SCRIPT := '
 	xquery version "1.0-ml";
@@ -12,19 +16,95 @@ declare variable $CORB-SCRIPT := '
 	declare variable $uri-query external;
 	declare variable $transform-query external;
 	declare variable $options external;
+	declare variable $job-id external;
 	let $uris := spawnlib:inforest-eval-query($uri-query, (), ())
+	let $varsmap := map:map()
+	let $_ := map:put($varsmap, "job-id", $job-id)
+	let $_ := map:put($varsmap, "total-tasks", fn:count($uris))
+	let $_ := map:put($varsmap, "uri-query", $uri-query)
+	let $_ := map:put($varsmap, "transform-query", $transform-query)
+	let $_ := map:put($varsmap, "options", $options)
+	let $create-progress-doc := spawnlib:inforest-eval($spawnlib:CREATE-JOBDOC, $varsmap, ())
 	for $uri at $x in $uris
-	return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri), $options)
+	return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri, xs:QName("job-id"), $job-id, xs:QName("task-number"), fn:string($x)), $options)
 ';
 
-declare variable $RESET := '
+declare variable $CREATE-JOBDOC := '
 	xquery version "1.0-ml";
-	xdmp:set-server-field("spawnlib:kill", fn:false())
+	declare variable $job-id external;
+	declare variable $total-tasks external;
+	declare variable $uri-query external;
+	declare variable $transform-query external;
+	declare variable $options external;
+	let $progress-map := map:map()
+	let $_ := for $i in (1 to xs:integer($total-tasks)) return map:put($progress-map, fn:string($i), 1)
+	let $_ := xdmp:set-server-field("spawnlib:progress-" || fn:string($job-id), $progress-map)
+	let $host-id := fn:string(xdmp:host())
+	let $host-name := xdmp:host-name()
+	return
+		xdmp:document-insert("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml",
+			<job xmlns="http://marklogic.com/spawnlib">
+				<job-id>{$job-id}</job-id>
+				<host-id>{$host-id}</host-id>
+				<host-name>{$host-name}</host-name>
+				<created>{fn:current-dateTime()}</created>
+				<status>running</status>
+				<total>{$total-tasks}</total>
+				<uri-query>{$uri-query}</uri-query>
+				<transform-query>{$transform-query}</transform-query>
+				<options>{$options}</options>
+			</job>
+		)
+';
+
+declare variable $SINGLE-TASK-COMPLETE := '
+	xquery version "1.0-ml";
+	declare namespace spawnlib = "http://marklogic.com/spawnlib";
+	declare variable $job-id external;
+	declare variable $task-number external;
+	declare variable $host-id := fn:string(xdmp:host());
+	let $progress-uri := "/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml"
+	let $_ := xdmp:lock-for-update($progress-uri)
+	let $progress-map := xdmp:get-server-field("spawnlib:progress-" || $job-id)
+	return
+		(
+			map:put($progress-map, xs:string($task-number), ()),
+			if (map:count($progress-map) eq 0 and $task-number ne "0") then
+				(
+					xdmp:node-replace(fn:doc($progress-uri)//spawnlib:status/text(), text{"complete"}),
+					xdmp:node-insert-after(fn:doc($progress-uri)/spawnlib:job/spawnlib:status, <spawnlib:completed>{fn:current-dateTime()}</spawnlib:completed>)
+				)
+			else ()
+		)
+';
+
+declare variable $CHECK-PROGRESS := '
+	xquery version "1.0-ml";
+	declare variable $job-id external;
+	let $progress-map := xdmp:get-server-field("spawnlib:progress-" || $job-id)
+	return map:count($progress-map)
 ';
 
 declare variable $POISON-PILL := '
 	xquery version "1.0-ml";
-	xdmp:set-server-field("spawnlib:kill", fn:true())
+	declare variable $job-id external;
+	declare variable $host-id := fn:string(xdmp:host());
+	if ($job-id eq 0) then
+		for $progress-doc in xdmp:directory("/spawnlib-jobs/", "infinity")[.//*:status eq "running"]
+		return
+			(
+				xdmp:set-server-field("spawnlib:kill-" || $progress-doc//*:job-id/fn:string(), fn:true()),
+				xdmp:node-replace($progress-doc//*:status/text(), text{"killed"})
+			)
+	else
+		let $progress-doc := fn:doc("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml")
+		return
+			if ($progress-doc//*:status eq "running") then
+				(
+					xdmp:set-server-field("spawnlib:kill-" || fn:string($job-id), fn:true()),
+					xdmp:node-replace($progress-doc//*:status/text(), text{"killed"})
+				)
+			else ()
 ';
 
 declare variable $database :=
@@ -73,7 +153,7 @@ declare function spawnlib:eval($q as xs:string, $varsmap as map:map?, $options a
 	xdmp:eval(
 		$q,
 		(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
-		functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "taskid", "batchsize", "authentication"))
+		functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication"))
 	)
 };
 
@@ -82,7 +162,7 @@ declare function spawnlib:inforest-eval($q as xs:string, $varsmap as map:map?, $
 		$q,
 		(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
 		<options xmlns="xdmp:eval">
-			{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "taskid", "batchsize", "authentication"))/node()}
+			{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication"))/node()}
 			<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 		</options>
 	)
@@ -93,7 +173,7 @@ declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:m
 		$q,
 		(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
 		<options xmlns="xdmp:eval">
-			{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "taskid", "batchsize", "authentication"))/node()}
+			{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication"))/node()}
 			<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 			<transaction-mode>query</transaction-mode>
 		</options>
@@ -103,17 +183,25 @@ declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:m
 declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map, $options as node()?) {
 	xdmp:spawn-function(
 		function() {
-			let $taskid := $options//*:taskid/text()
-			let $kill := xs:boolean(xdmp:get-server-field("spawnlib:kill", fn:false()))
+			let $job-id := map:get($varsmap, "job-id")
+			let $kill := xs:boolean(xdmp:get-server-field("spawnlib:kill", fn:false())) or xs:boolean(xdmp:get-server-field("spawnlib:kill-" || $job-id, fn:false()))
 			let $priority := ($options//*:priority/fn:string(), "normal")[1]
+			let $inforest := xs:boolean(($options//*:inforest/fn:string(), "false")[1])
+			let $_ := if ($debug) then xdmp:log("INFOREST " || fn:string($inforest)) else ()
 			return
 				if ($kill and ($priority = "normal")) then
 					()
 				else
-					spawnlib:eval($q, $varsmap, $options),
-			xdmp:commit()
+					(
+						if ($inforest) then
+							spawnlib:inforest-eval($q, $varsmap, $options)
+						else
+							spawnlib:eval($q, $varsmap, $options),
+						if ($job-id eq 0 or $priority eq "higher") then () else spawnlib:inforest-eval($SINGLE-TASK-COMPLETE, $varsmap, ()),
+						xdmp:commit()
+					)
 		},
-		functx:remove-elements-deep($options, ("inforest", "appserver", "taskid", "batchsize", "authentication"))
+		functx:remove-elements-deep($options, ("inforest", "appserver", "authentication"))
 	)
 };
 
@@ -126,7 +214,7 @@ declare function spawnlib:spawn-local($q as xs:string, $vars as item()*, $option
 	return spawnlib:spawn-local-task($q, $varsmap, $options)
 };
 
-declare function spawnlib:spawn($q as xs:string, $vars as item()*, $options as node()?) {
+declare function spawnlib:farm($q as xs:string, $vars as item()*, $options as node()?) {
 	let $varsmap := map:map()
 	let $options := if (fn:exists($options)) then $options else <options xmlns="xdmp:eval"/>
 	let $_ :=
@@ -150,68 +238,155 @@ declare function spawnlib:spawn($q as xs:string, $vars as item()*, $options as n
 		</options>
 	let $appserver := ($options//*:appserver/fn:string(), xdmp:server-name(xdmp:server()))[1]
 	let $port := admin:appserver-get-port(admin:get-configuration(), xdmp:server($appserver))
-	for $host-id in $host-ids
-	let $host-name := xdmp:host-name($host-id)
-	let $url := 'http://' || $host-name || ':' || fn:string($port) || '/spawn/spawn-receiver.xqy'
-	return xdmp:http-post($url, $http-options)
+	let $result-map := map:map()
+	let $_ :=
+		for $host-id in $host-ids
+		let $host-name := xdmp:host-name($host-id)
+		let $url := 'http://' || $host-name || ':' || fn:string($port) || '/spawn/spawn-receiver.xqy'
+		let $result := xdmp:http-post($url, $http-options)
+		return
+			if ($result[1]//*:code/fn:string() eq "200") then
+				let $res := $result[2]
+				let $res := if (fn:string-length($res) = 0) then () else $res
+				return map:put($result-map, fn:string($host-id), $res)
+			else
+				fn:error(xs:QName("SPAWNLIB-HTTP"), "Error farming job to cluster")
+	return $result-map
+};
+
+declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:string) {
+	spawnlib:corb($uri-query, $transform-query, ())
 };
 
 declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:string, $options as node()?) {
-	let $taskid := xdmp:hash64(fn:string(fn:current-dateTime()))
-	let $options := if (fn:exists($options)) then $options else <options xmlns="xdmp:eval"/>
-	let $options :=
-		<options xmlns="xdmp:eval">
-		{
-			$options/node(),
-			<taskid>{$taskid}</taskid>
-		}
-		</options>
-	let $_resume := spawnlib:resume($options)
-	return (
-		$taskid,
-		spawnlib:spawn(
+	let $job-id := xdmp:hash64(fn:string(fn:current-dateTime()))
+	let $options := spawnlib:merge-options($options)
+	let $result-map :=
+		spawnlib:farm(
 			$CORB-SCRIPT,
-			(xs:QName('uri-query'), $uri-query, xs:QName('transform-query'), $transform-query, xs:QName('options'), $options),
+			(xs:QName('uri-query'), $uri-query, xs:QName('transform-query'), $transform-query, xs:QName('job-id'), $job-id, xs:QName('task-number'), 0, xs:QName('options'), $options),
 			<options xmlns="xdmp:eval">
 			{
-				<inforest>true</inforest>,
-				functx:remove-elements-deep($options, ("inforest", "taskid"))/node()
+				functx:remove-elements-deep($options, ("inforest", "result"))/node()
 			}
 			</options>
 		)
-	)
+	return $job-id
 };
 
-declare function spawnlib:resume() {
-	spawnlib:resume(())
+declare function spawnlib:merge-options($options as element()?) {
+	let $config-options := $config:OPTIONS
+	let $_ :=
+		for $node in $options/node()
+		return
+			if (fn:local-name($node) eq $config-options/node()/fn:local-name(.)) then
+				xdmp:set($config-options, mem:node-replace($config-options/node()[fn:local-name(.) eq fn:local-name($node)], $node))
+			else
+				xdmp:set($config-options, mem:node-insert-child($config-options, $node))
+	return $config-options
+
 };
 
-declare function spawnlib:resume($options as node()?) {
-	spawnlib:spawn(
-		$RESET,
-		(),
-		<options xmlns="xdmp:eval">
-		{
-			functx:remove-elements-deep($options, ("priority"))/node(),
-			<priority>higher</priority>
-		}
-		</options>
-	)
+declare function spawnlib:check-progress() {
+	spawnlib:check-progress(())
+};
+
+declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
+	let $job-ids := if (fn:empty($job-id)) then xdmp:directory("/spawnlib-jobs/", "infinity")//*:job-id/fn:string() else $job-id
+	let $job-objects :=
+		for $job-id in $job-ids
+		let $progress-map := 
+			spawnlib:farm(
+				$CHECK-PROGRESS,
+				(xs:QName("job-id"), $job-id),
+				spawnlib:merge-options(
+					<options xmlns="xdmp:eval">
+						<priority>higher</priority>
+						<result>{fn:true()}</result>
+						<inforest>true</inforest>
+					</options>
+				)
+			)
+		let $jobdocs := xdmp:directory("/spawnlib-jobs/" || $job-id || "/", "infinity")
+		let $total-progress := fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get($progress-map, $host-id)))
+		let $total-tasks := fn:sum($jobdocs//spawnlib:total/xs:unsignedLong(.))
+		let $statuses := $jobdocs//spawnlib:status/fn:string()
+		let $overall-status := if ($statuses = "running") then "running" else if ($statuses = "killed") then "killed" else "complete"
+		let $created-date := (for $date in $jobdocs//spawnlib:created order by xs:dateTime($date) ascending return $date)[1]
+		order by xs:dateTime($created-date) descending
+		return
+			<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
+				<id type="string">{$job-id}</id>
+				<status type="string">{$overall-status}</status>
+				<progress type="number">{$total-tasks - $total-progress}</progress>
+				<total type="number">{$total-tasks}</total>
+				<created type="string">{$created-date}</created>
+				{
+					if (fn:count($jobdocs//spawnlib:completed) eq map:count($progress-map)) then
+						<completed type="string">{(for $date in $jobdocs//spawnlib:completed/fn:string() order by xs:dateTime($date) descending return $date)[1]}</completed>
+					else
+						()
+				}
+				<host-status type="object">
+				{
+					for $host-id in map:keys($progress-map)
+					let $jobdoc := $jobdocs[.//*:host-id eq $host-id]
+					return
+						element {fn:QName("http://marklogic.com/xdmp/json/basic", $jobdoc//spawnlib:host-name/fn:string())} {
+							attribute type {"object"},
+							<status type="string">{$jobdoc//spawnlib:status/fn:string()}</status>,
+							<progress type="number">{xs:unsignedLong($jobdoc//spawnlib:total) - map:get($progress-map, $host-id)}</progress>,
+							<total type="number">{xs:unsignedLong($jobdoc//spawnlib:total)}</total>,
+							<created type="string">{$jobdoc//spawnlib:created/fn:string()}</created>,
+							if (fn:exists($jobdoc//spawnlib:completed)) then
+								<completed type="string">{$jobdoc//spawnlib:completed/fn:string()}</completed>
+							else
+								()
+						}
+				}
+				</host-status>
+			</json>
+	return
+		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
+			<success type="boolean">true</success>
+			<results type="array">{$job-objects}</results>
+		</json>
 };
 
 declare function spawnlib:kill() {
 	spawnlib:kill(())
 };
 
-declare function spawnlib:kill($options as node()?) {
-	spawnlib:spawn(
-		$POISON-PILL,
-		(),
-		<options xmlns="xdmp:eval">
-		{
-			functx:remove-elements-deep($options, "priority")/node(),
-			<priority>higher</priority>
-		}
-		</options>
-	)
+declare function spawnlib:kill($job-id as xs:unsignedLong?) {
+	let $kill-map :=
+		spawnlib:farm(
+			$POISON-PILL,
+			(xs:QName("job-id"), ($job-id, 0)[1]),
+			spawnlib:merge-options(
+				<options xmlns="xdmp:eval">
+					<priority>higher</priority>
+					<result>{fn:true()}</result>
+				</options>
+			)
+		)
+	return
+		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
+			<success type="boolean">true</success>
+		</json>
+};
+
+declare function spawnlib:remove() {
+	spawnlib:kill(())
+};
+
+declare function spawnlib:remove($job-id as xs:unsignedLong?) {
+	let $remove :=
+		if (fn:exists($job-id)) then
+			xdmp:directory-delete("/spawnlib-jobs/" || fn:string($job-id) || "/")
+		else
+			xdmp:directory-delete("/spawnlib-jobs/")
+	return
+		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
+			<success type="boolean">true</success>
+		</json>
 };
