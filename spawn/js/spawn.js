@@ -32,6 +32,15 @@ $(document).ready(function() {
 		});
 	});
 
+	$('table').on('click', '.task_link', function(evt, ui) {
+		evt.preventDefault();
+		var uri_query = $(this).parents('tr').find('input.uri_query').val();
+		var xform_query = $(this).parents('tr').find('input.transform_query').val();
+		urisEditor.getDoc().setValue(uri_query);
+		xformEditor.getDoc().setValue(xform_query);
+		$('.nav li').eq(1).find('a[data-toggle="tab"]').click();
+	});
+
 	$('body').on('click', 'button.remove', function(evt, ui) {
 		var id = $(this).attr('data-job-id');
 		$.ajax({

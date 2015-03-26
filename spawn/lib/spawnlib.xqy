@@ -327,7 +327,9 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 					else
 						()
 				}
-				<host-status type="object">
+				<uriquery type="string">{($jobdocs//spawnlib:uri-query/fn:string())[1]}</uriquery>
+				<transformquery type="string">{($jobdocs//spawnlib:transform-query/fn:string())[1]}</transformquery>
+				<hoststatus type="object">
 				{
 					for $host-id in map:keys($progress-map)
 					let $jobdoc := $jobdocs[.//*:host-id eq $host-id]
@@ -344,7 +346,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 								()
 						}
 				}
-				</host-status>
+				</hoststatus>
 			</json>
 	return
 		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">

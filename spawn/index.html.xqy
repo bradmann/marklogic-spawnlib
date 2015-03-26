@@ -69,7 +69,7 @@ xdmp:set-response-content-type("text/html"),
 			<div id="tab1" class="tab-pane active fade in container col-md-10 col-md-offset-1">
 				<div class="panel panel-default">
 					<div class="panel-heading"><h3 class="panel-title">Active Jobs</h3></div>
-					<table class="table" id="running_jobs_table">
+					<table class="table table-striped" id="running_jobs_table">
 						<thead><tr><th>id</th><th>status</th><th>created</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
 						<tbody>
 						</tbody>
@@ -77,7 +77,7 @@ xdmp:set-response-content-type("text/html"),
 				</div>
 				<div class="panel panel-default">
 					<div class="panel-heading"><h3 class="panel-title">Inactive Jobs</h3></div>
-					<table class="table" id="job_history_table">
+					<table class="table table-striped" id="job_history_table">
 						<thead><tr><th>id</th><th>status</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
 						<tbody>
 						</tbody>
@@ -123,23 +123,27 @@ xdmp:set-response-content-type("text/html"),
 
 		<script id="running_row_tmpl" type="text/x-jquery-tmpl">
 			<tr>
-				<td>{{{{:id}}}}</td>
+				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
 				<td>{{{{:status}}}}</td>
 				<td>{{{{:created}}}}</td>
 				<td>{{{{:progress}}}}</td>
 				<td>{{{{:total}}}}</td>
 				<td><button class="btn btn-danger btn-sm kill" data-job-id="{{{{:id}}}}">kill</button></td>
+				<input type="hidden" class="uri_query" value="{{{{html:uriquery}}}}"/>
+				<input type="hidden" class="transform_query" value="{{{{html:transformquery}}}}"/>
 			</tr>
 		</script>
 		<script id="history_row_tmpl" type="text/x-jquery-tmpl">
 			<tr>
-				<td>{{{{:id}}}}</td>
+				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
 				<td>{{{{:status}}}}</td>
 				<td>{{{{:created}}}}</td>
 				<td>{{{{:completed}}}}</td>
 				<td>{{{{:progress}}}}</td>
 				<td>{{{{:total}}}}</td>
 				<td><button class="btn btn-default btn-sm remove" data-job-id="{{{{:id}}}}">remove</button></td>
+				<input type="hidden" class="uri_query" value="{{{{html:uriquery}}}}"/>
+				<input type="hidden" class="transform_query" value="{{{{html:transformquery}}}}"/>
 			</tr>
 		</script>
 
