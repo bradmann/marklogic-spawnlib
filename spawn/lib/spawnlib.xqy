@@ -24,9 +24,9 @@ declare variable $CORB-SCRIPT := '
 	let $_ := map:put($varsmap, "uri-query", $uri-query)
 	let $_ := map:put($varsmap, "transform-query", $transform-query)
 	let $_ := map:put($varsmap, "options", $options)
-	let $create-progress-doc := spawnlib:inforest-eval($spawnlib:CREATE-JOBDOC, $varsmap, ())
+	let $create-job-doc := spawnlib:inforest-eval($spawnlib:CREATE-JOBDOC, $varsmap, ())
 	for $uri at $x in $uris
-	return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri, xs:QName("job-id"), $job-id, xs:QName("task-number"), fn:string($x)), $options)
+	return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri, xs:QName("job-id"), $job-id, xs:QName("task-number"), $x), $options)
 ';
 
 declare variable $CREATE-JOBDOC := '
@@ -69,8 +69,9 @@ declare variable $SINGLE-TASK-COMPLETE := '
 	return
 		(
 			map:put($progress-map, xs:string($task-number), ()),
-			if (map:count($progress-map) eq 0 and $task-number ne "0") then
+			if (map:count($progress-map) eq 0 and $task-number ne 0) then
 				(
+					xdmp:set-server-field("spawnlib:progress-" || $job-id, ()),
 					xdmp:node-replace(fn:doc($progress-uri)//spawnlib:status/text(), text{"complete"}),
 					xdmp:node-insert-after(fn:doc($progress-uri)/spawnlib:job/spawnlib:status, <spawnlib:completed>{fn:current-dateTime()}</spawnlib:completed>)
 				)
@@ -80,9 +81,14 @@ declare variable $SINGLE-TASK-COMPLETE := '
 
 declare variable $CHECK-PROGRESS := '
 	xquery version "1.0-ml";
-	declare variable $job-id external;
-	let $progress-map := xdmp:get-server-field("spawnlib:progress-" || $job-id)
-	return map:count($progress-map)
+	declare variable $job-id-map external;
+	let $result-map := map:map()
+	let $_ :=
+		for $job-id in map:keys($job-id-map)
+		let $progress-map := xdmp:get-server-field("spawnlib:progress-" || $job-id)
+		let $count := (map:count($progress-map), 0)[1]
+		return map:put($result-map, $job-id, $count)
+	return <x>{$result-map}</x>/node()
 ';
 
 declare variable $POISON-PILL := '
@@ -292,13 +298,19 @@ declare function spawnlib:check-progress() {
 };
 
 declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
-	let $job-ids := if (fn:empty($job-id)) then xdmp:directory("/spawnlib-jobs/", "infinity")//*:job-id/fn:string() else $job-id
-	let $job-objects :=
-		for $job-id in $job-ids
-		let $progress-map := 
+	let $job-ids :=
+		if (fn:empty($job-id)) then
+			xdmp:directory("/spawnlib-jobs/", "infinity")//*:job-id/fn:string()
+		else if (fn:string($job-id) = xdmp:directory("/spawnlib-jobs/", "infinity")//*:job-id/fn:string()) then
+			$job-id
+		else
+			()
+	let $job-id-map := map:map()
+	let $_ := for $job-id in $job-ids return map:put($job-id-map, fn:string($job-id), 1)
+	let $progress-map := 
 			spawnlib:farm(
 				$CHECK-PROGRESS,
-				(xs:QName("job-id"), $job-id),
+				(xs:QName("job-id-map"), $job-id-map),
 				spawnlib:merge-options(
 					<options xmlns="xdmp:eval">
 						<priority>higher</priority>
@@ -307,8 +319,14 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 					</options>
 				)
 			)
+	let $_ :=
+		for $host-id in map:keys($progress-map)
+		let $result := map:map(map:get($progress-map, $host-id)/node())
+		return map:put($progress-map, $host-id, $result)
+	let $job-objects :=
+		for $job-id in $job-ids
 		let $jobdocs := xdmp:directory("/spawnlib-jobs/" || $job-id || "/", "infinity")
-		let $total-progress := fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get($progress-map, $host-id)))
+		let $total-progress := fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get($progress-map, $host-id), fn:string($job-id))))
 		let $total-tasks := fn:sum($jobdocs//spawnlib:total/xs:unsignedLong(.))
 		let $statuses := $jobdocs//spawnlib:status/fn:string()
 		let $overall-status := if ($statuses = "running") then "running" else if ($statuses = "killed") then "killed" else "complete"
@@ -337,7 +355,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 						element {fn:QName("http://marklogic.com/xdmp/json/basic", $jobdoc//spawnlib:host-name/fn:string())} {
 							attribute type {"object"},
 							<status type="string">{$jobdoc//spawnlib:status/fn:string()}</status>,
-							<progress type="number">{xs:unsignedLong($jobdoc//spawnlib:total) - map:get($progress-map, $host-id)}</progress>,
+							<progress type="number">{xs:unsignedLong($jobdoc//spawnlib:total) - map:get(map:get($progress-map, $host-id), fn:string($job-id))}</progress>,
 							<total type="number">{xs:unsignedLong($jobdoc//spawnlib:total)}</total>,
 							<created type="string">{$jobdoc//spawnlib:created/fn:string()}</created>,
 							if (fn:exists($jobdoc//spawnlib:completed)) then
@@ -353,6 +371,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 			<success type="boolean">true</success>
 			<results type="array">{$job-objects}</results>
 		</json>
+
 };
 
 declare function spawnlib:kill() {

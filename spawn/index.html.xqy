@@ -1,5 +1,5 @@
 (:
-Copyright 2012 MarkLogic Corporation
+Copyright 2015 MarkLogic Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,6 +61,18 @@ xdmp:set-response-content-type("text/html"),
 					<ul class="nav navbar-nav">
 						<li class="active"><a href="#tab1" data-toggle="tab">Status</a></li>
 						<li><a href="#tab2" data-toggle="tab">Create</a></li>
+					</ul>
+					<ul class="nav navbar-nav pull-right">
+						<li role="presentation" class="dropdown">
+							<a class="dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-expanded="false">Refresh <span class="caret"></span></a>
+							<ul id="refresh_rate" class="dropdown-menu pull-right" role="menu">
+								<li><a href="#" data-value="1">1 second</a></li>
+								<li><a href="#" data-value="5">5 seconds</a></li>
+								<li><a href="#" data-value="10">10 seconds</a></li>
+								<li><a href="#" data-value="30">30 seconds</a></li>
+								<li><a href="#" data-value="60">60 seconds</a></li>
+							</ul>
+						</li>
 					</ul>
 				</div><!-- /.navbar-collapse -->
 			</div><!-- /.container-fluid -->
@@ -148,6 +160,7 @@ xdmp:set-response-content-type("text/html"),
 		</script>
 
 		<script src="js/lib/jquery-1.7.1.min.js" type="text/javascript"></script>
+		<script src="js/lib/jquery.cookie.js" type="text/javascript"></script>
 		<script src="js/lib/less-1.3.0.min.js" type="text/javascript"></script>
 		<script src="js/lib/jsrender.js" type="text/javascript"></script>
 		<script src="js/lib/codemirror.js" type="text/javascript"></script>

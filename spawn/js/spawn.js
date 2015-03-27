@@ -1,5 +1,6 @@
 $(document).ready(function() {
 	var updateTimer = null;
+	var refreshRate = 1000;
 	$('#urisQuery').val('xquery version "1.0-ml";\n(: ENTER YOUR URI QUERY HERE :)');
 	$('#xformQuery').val('xquery version "1.0-ml";\n(: ENTER YOUR TRANSFORM QUERY HERE :)');
 	var urisEditor = CodeMirror.fromTextArea($('#urisQuery')[0], {mode: "xquery", lineNumbers: true});
@@ -16,6 +17,19 @@ $(document).ready(function() {
 	$('#task_create_button').on('click', function(evt, ui) {
 		createSpawnJob();
 		return false;
+	});
+
+	$('#refresh_rate a').click(function(evt, ui) {
+		evt.preventDefault();
+		refreshRate = parseInt($(this).attr('data-value')) * 1000;
+		$('#refresh_rate a').html(function(i, html) {
+				return $('<div>' + html + '</div>').text();
+			});
+		$(this).html('<strong>' + $(this).text() + '</strong>');
+		clearInterval(updateTimer);
+		refreshData();
+		updateTimer = setInterval(refreshData, refreshRate);
+		$.cookie("refresh_rate", refreshRate.toString(), {expires: 999});
 	});
 
 	$('body').on('click', 'button.kill', function(evt, ui) {
@@ -87,8 +101,8 @@ $(document).ready(function() {
 			$('#message').fadeIn('fast');
 			$('#message').delay(4000).fadeOut('slow');
 			clearInterval(updateTimer);
-			refreshData();
-			updateTimer = setInterval(refreshData, 1000);
+			setTimeout(refreshData, 1000);
+			updateTimer = setInterval(refreshData, refreshRate);
 			$('.nav li').eq(0).find('a[data-toggle="tab"]').click();
 		})
 		.fail(createFailed);
@@ -122,6 +136,19 @@ $(document).ready(function() {
 		});
 	}
 
+	var refresh = $.cookie("refresh_rate");
+	if (refresh == undefined) {
+		refresh = '1000';
+		$.cookie("refresh_rate", refresh, {expires: 999});
+	}
+
+	refreshRate = parseInt(refresh);
+
+	var selectedRefresh = refreshRate / 1000;
+
+	var menuItem = $('#refresh_rate a[data-value="' + selectedRefresh + '"]');
+	menuItem.html('<strong>' + menuItem.text() + '</strong>');
+
 	refreshData();
-	updateTimer = setInterval(refreshData, 1000);
+	updateTimer = setInterval(refreshData, refreshRate);
 });
