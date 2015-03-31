@@ -18,12 +18,20 @@ declare variable $CORB-SCRIPT := '
 	declare variable $options external;
 	declare variable $job-id external;
 	let $uris := spawnlib:inforest-eval-query($uri-query, (), ())
+
+	let $cnt := fn:count($uris)
+	let $status := if ($cnt eq 0) then
+							"complete"
+						else
+							"running"
+
 	let $varsmap := map:map()
 	let $_ := map:put($varsmap, "job-id", $job-id)
-	let $_ := map:put($varsmap, "total-tasks", fn:count($uris))
+	let $_ := map:put($varsmap, "total-tasks", $cnt)
 	let $_ := map:put($varsmap, "uri-query", $uri-query)
 	let $_ := map:put($varsmap, "transform-query", $transform-query)
 	let $_ := map:put($varsmap, "options", $options)
+	let $_ := map:put($varsmap, "status", $status)
 	let $create-job-doc := spawnlib:inforest-eval($spawnlib:CREATE-JOBDOC, $varsmap, ())
 	for $uri at $x in $uris
 	return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri, xs:QName("job-id"), $job-id, xs:QName("task-number"), $x), $options)
@@ -36,6 +44,8 @@ declare variable $CREATE-JOBDOC := '
 	declare variable $uri-query external;
 	declare variable $transform-query external;
 	declare variable $options external;
+	declare variable $status external;
+
 	let $progress-map := map:map()
 	let $_ := for $i in (1 to xs:integer($total-tasks)) return map:put($progress-map, fn:string($i), 1)
 	let $_ := xdmp:set-server-field("spawnlib:progress-" || fn:string($job-id), $progress-map)
@@ -48,8 +58,11 @@ declare variable $CREATE-JOBDOC := '
 				<host-id>{$host-id}</host-id>
 				<host-name>{$host-name}</host-name>
 				<created>{fn:current-dateTime()}</created>
-				<status>running</status>
-				<total>{$total-tasks}</total>
+				<status>{$status}</status>
+				{ if ($status eq "complete") then
+					<completed>{fn:current-dateTime()}</completed>
+				else ()
+				}<total>{$total-tasks}</total>
 				<uri-query>{$uri-query}</uri-query>
 				<transform-query>{$transform-query}</transform-query>
 				<options>{$options}</options>
