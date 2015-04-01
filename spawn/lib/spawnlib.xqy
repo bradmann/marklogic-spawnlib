@@ -345,7 +345,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 		let $result := map:map(map:get($progress-map, $host-id)/node())
 		return map:put($progress-map, $host-id, $result)
 
-	let $q := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-ids)
+	let $job-name-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:name"), ("map"), $q)
 	let $job-totals-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:total"), ("map"), $q)
 	let $job-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:status"), ("map"), $q)
 	let $job-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:created"), ("map"), $q)
@@ -355,8 +355,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 
 	let $job-objects :=
 		for $job-id in $job-ids
-		let $q := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-id)
-		let $name := (cts:search(/, $q)[1])//spawnlib:name/fn:string()
+		let $name := map:get($job-name-map, fn:string($job-id))
 		let $total-progress := fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get($progress-map, $host-id), fn:string($job-id))))
 		let $total-tasks := fn:sum(map:get($job-totals-map, fn:string($job-id)))
 		let $statuses := map:get($job-status-map, fn:string($job-id))
