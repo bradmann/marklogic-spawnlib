@@ -16,7 +16,7 @@ try {
 			<inforest>{$inforest}</inforest>
 		</options>
 
-	let $response := spawnlib:corb($uris-query, $xform-query, $options)
+	let $response := spawnlib:corb($uris-query, $xform-query, "Spawn UI", $options)
 	let $id := $response[1]
 
 	let $response :=
