@@ -345,6 +345,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 		let $result := map:map(map:get($progress-map, $host-id)/node())
 		return map:put($progress-map, $host-id, $result)
 
+	let $q := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-ids)
 	let $job-name-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:name"), ("map"), $q)
 	let $job-totals-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:total"), ("map"), $q)
 	let $job-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:status"), ("map"), $q)
