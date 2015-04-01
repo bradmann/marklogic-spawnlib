@@ -82,7 +82,7 @@ xdmp:set-response-content-type("text/html"),
 				<div class="panel panel-default">
 					<div class="panel-heading"><h3 class="panel-title">Active Jobs</h3></div>
 					<table class="table table-striped" id="running_jobs_table">
-						<thead><tr><th>id</th><th>status</th><th>created</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
+						<thead><tr><th>id</th><th>name</th><th>status</th><th>created</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
 						<tbody>
 						</tbody>
 					</table>
@@ -90,7 +90,7 @@ xdmp:set-response-content-type("text/html"),
 				<div class="panel panel-default">
 					<div class="panel-heading"><h3 class="panel-title">Inactive Jobs</h3></div>
 					<table class="table table-striped" id="job_history_table">
-						<thead><tr><th>id</th><th>status</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
+						<thead><tr><th>id</th><th>name</th><th>status</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
 						<tbody>
 						</tbody>
 					</table>
@@ -136,6 +136,7 @@ xdmp:set-response-content-type("text/html"),
 		<script id="running_row_tmpl" type="text/x-jquery-tmpl">
 			<tr>
 				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
+				<td>{{{{:name}}}}</td>
 				<td>{{{{:status}}}}</td>
 				<td>{{{{:created}}}}</td>
 				<td>{{{{:progress}}}}</td>
@@ -148,6 +149,7 @@ xdmp:set-response-content-type("text/html"),
 		<script id="history_row_tmpl" type="text/x-jquery-tmpl">
 			<tr>
 				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
+				<td>{{{{:name}}}}</td>
 				<td>{{{{:status}}}}</td>
 				<td>{{{{:created}}}}</td>
 				<td>{{{{:completed}}}}</td>
