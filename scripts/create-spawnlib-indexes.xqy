@@ -7,14 +7,47 @@ let $indexes :=
 			<range-element-index>
 				<scalar-type>unsignedLong</scalar-type>
 				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
-				<localname>total job-id host-id</localname>
+				<localname>total</localname>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
+			<range-element-index>
+				<scalar-type>unsignedLong</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>job-id</localname>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
+			<range-element-index>
+				<scalar-type>unsignedLong</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>host-id</localname>
 				<range-value-positions>false</range-value-positions>
 			</range-element-index>
 
 			<range-element-index>
 				<scalar-type>string</scalar-type>
 				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
-				<localname>name status uri-query transform-query</localname>
+				<localname>name</localname>
+				<collation>http://marklogic.com/collation/codepoint</collation>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
+			<range-element-index>
+				<scalar-type>string</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>status</localname>
+				<collation>http://marklogic.com/collation/codepoint</collation>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
+			<range-element-index>
+				<scalar-type>string</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>uri-query</localname>
+				<collation>http://marklogic.com/collation/codepoint</collation>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
+			<range-element-index>
+				<scalar-type>string</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>transform-query</localname>
 				<collation>http://marklogic.com/collation/codepoint</collation>
 				<range-value-positions>false</range-value-positions>
 			</range-element-index>
@@ -22,7 +55,13 @@ let $indexes :=
 			<range-element-index>
 				<scalar-type>dateTime</scalar-type>
 				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
-				<localname>created completed</localname>
+				<localname>created</localname>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
+			<range-element-index>
+				<scalar-type>dateTime</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>completed</localname>
 				<range-value-positions>false</range-value-positions>
 			</range-element-index>
 		</range-element-indexes>
