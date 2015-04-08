@@ -346,13 +346,13 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 		return map:put($progress-map, $host-id, $result)
 
 	let $q := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-ids)
-	let $job-name-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:name"), ("map"), $q)
+	let $job-name-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:name"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $q)
 	let $job-totals-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:total"), ("map"), $q)
-	let $job-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:status"), ("map"), $q)
+	let $job-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:status"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $q)
 	let $job-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:created"), ("map"), $q)
 	let $job-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:completed"), ("map"), $q)
-	let $job-uriquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:uri-query"), ("map"), $q)
-	let $job-transformquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:transform-query"), ("map"), $q)
+	let $job-uriquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:uri-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $q)
+	let $job-transformquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:transform-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $q)
 
 	let $job-objects :=
 		for $job-id in $job-ids
@@ -385,7 +385,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 				<hoststatus type="object">
 				{
 					let $job-query := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-id)
-					let $host-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:status"), ("map"), $job-query)
+					let $host-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:status"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $job-query)
 					let $host-total-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:total"), ("map"), $job-query)
 					let $host-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:created"), ("map"), $job-query)
 					let $host-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:completed"), ("map"), $job-query)
