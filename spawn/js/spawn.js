@@ -2,7 +2,7 @@ $(document).ready(function() {
 	var updateTimer = null;
 	var refreshRate = 1000;
 	$('#urisQuery').val('xquery version "1.0-ml";\n(: ENTER YOUR URI QUERY HERE :)');
-	$('#xformQuery').val('xquery version "1.0-ml";\n(: ENTER YOUR TRANSFORM QUERY HERE :)');
+	$('#xformQuery').val('xquery version "1.0-ml";\ndeclare variable $URI external;\n(: ENTER YOUR TRANSFORM QUERY HERE :)');
 	var urisEditor = CodeMirror.fromTextArea($('#urisQuery')[0], {mode: "xquery", lineNumbers: true});
 	var xformEditor = CodeMirror.fromTextArea($('#xformQuery')[0], {mode: "xquery", lineNumbers: true});
 
