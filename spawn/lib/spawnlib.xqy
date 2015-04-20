@@ -18,23 +18,34 @@ declare variable $CORB-SCRIPT := '
 	declare variable $options external;
 	declare variable $name external;
 	declare variable $job-id external;
-	let $uris := spawnlib:inforest-eval-query($uri-query, (), ())
-
-	let $cnt := fn:count($uris)
-	let $status := if ($cnt eq 0) then
-							"complete"
-						else
-							"running"
-
+	let $error := ()
 	let $varsmap := map:map()
 	let $_ := map:put($varsmap, "job-id", $job-id)
-	let $_ := map:put($varsmap, "total-tasks", $cnt)
 	let $_ := map:put($varsmap, "uri-query", $uri-query)
 	let $_ := map:put($varsmap, "transform-query", $transform-query)
 	let $_ := map:put($varsmap, "options", $options)
 	let $_ := map:put($varsmap, "name", $name)
-	let $_ := map:put($varsmap, "status", $status)
 	let $create-job-doc := spawnlib:inforest-eval($spawnlib:CREATE-JOBDOC, $varsmap, ())
+	let $uris :=
+		try {
+			spawnlib:inforest-eval-query($uri-query, (), ())
+		} catch ($e) {
+			xdmp:set($error, $e)
+		}
+
+	let $cnt := fn:count($uris)
+	let $status :=
+		if ($cnt eq 0 and fn:empty($error)) then
+			"complete"
+		else if ($cnt eq 0) then
+			"error"
+		else
+			"running"
+
+	let $_ := map:put($varsmap, "total-tasks", $cnt)
+	let $_ := map:put($varsmap, "status", $status)
+	let $_ := map:put($varsmap, "error", $error)
+	let $create-job-doc := spawnlib:inforest-eval($spawnlib:INIT-JOBDOC, $varsmap, ())
 	for $uri at $x in $uris
 	return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri, xs:QName("job-id"), $job-id, xs:QName("task-number"), $x), $options)
 ';
@@ -42,16 +53,11 @@ declare variable $CORB-SCRIPT := '
 declare variable $CREATE-JOBDOC := '
 	xquery version "1.0-ml";
 	declare variable $job-id external;
-	declare variable $total-tasks external;
 	declare variable $uri-query external;
 	declare variable $transform-query external;
 	declare variable $name external;
 	declare variable $options external;
-	declare variable $status external;
 
-	let $progress-map := map:map()
-	let $_ := for $i in (1 to xs:integer($total-tasks)) return map:put($progress-map, fn:string($i), 1)
-	let $_ := xdmp:set-server-field("spawnlib:progress-" || fn:string($job-id), $progress-map)
 	let $host-id := fn:string(xdmp:host())
 	let $host-name := xdmp:host-name()
 	return
@@ -62,16 +68,44 @@ declare variable $CREATE-JOBDOC := '
 				<host-id>{$host-id}</host-id>
 				<host-name>{$host-name}</host-name>
 				<created>{fn:current-dateTime()}</created>
-				<status>{$status}</status>
-				{ if ($status eq "complete") then
-					<completed>{fn:current-dateTime()}</completed>
-				else ()
-				}<total>{$total-tasks}</total>
+				<status>initializing</status>
 				<uri-query>{$uri-query}</uri-query>
 				<transform-query>{$transform-query}</transform-query>
 				<options>{$options}</options>
 			</job>
 		)
+';
+
+declare variable $INIT-JOBDOC := '
+	xquery version "1.0-ml";
+	declare namespace spawnlib = "http://marklogic.com/spawnlib";
+	declare variable $job-id external;
+	declare variable $total-tasks external;
+	declare variable $status external;
+	declare variable $error external := ();
+
+	let $progress-map := map:map()
+	let $_ := for $i in (1 to xs:integer($total-tasks)) return map:put($progress-map, fn:string($i), 1)
+	let $_ :=
+		if ($status eq "running") then
+			xdmp:set-server-field("spawnlib:progress-" || fn:string($job-id), $progress-map)
+		else
+			()
+	let $host-id := fn:string(xdmp:host())
+	let $jobdoc := fn:doc("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml")
+	return (
+		xdmp:node-replace($jobdoc/spawnlib:job/spawnlib:status/text(), text {$status})
+		,
+		if ($status eq "complete") then
+			xdmp:node-insert-child($jobdoc/spawnlib:job, <spawnlib:completed>{fn:current-dateTime()}</spawnlib:completed>)
+		else ()
+		,
+		xdmp:node-insert-child($jobdoc/spawnlib:job, <spawnlib:total>{$total-tasks}</spawnlib:total>)
+		,
+		if (fn:exists($error)) then
+			xdmp:node-insert-child($jobdoc/spawnlib:job, <spawnlib:error>{$error}</spawnlib:error>)
+		else ()
+	)
 ';
 
 declare variable $SINGLE-TASK-COMPLETE := '
@@ -358,10 +392,10 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 	let $job-objects :=
 		for $job-id in $job-ids
 		let $name := map:get($job-name-map, fn:string($job-id))
-		let $total-progress := fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get($progress-map, $host-id), fn:string($job-id))))
-		let $total-tasks := fn:sum(map:get($job-totals-map, fn:string($job-id)))
+		let $total-progress := (fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get($progress-map, $host-id), fn:string($job-id)))), 0)[1]
+		let $total-tasks := (fn:sum(map:get($job-totals-map, fn:string($job-id))), 0)[1]
 		let $statuses := map:get($job-status-map, fn:string($job-id))
-		let $overall-status := if ($statuses = "running") then "running" else if ($statuses = "killed") then "killed" else "complete"
+		let $overall-status := if ($statuses = "running") then "running" else if ($statuses = "killed") then "killed" else if ($statuses = "initializing") then "initializing" else "complete"
 		let $created-date := fn:min(map:get($job-created-map, fn:string($job-id)))
 		let $completed-dateTimes := map:get($job-completed-map, fn:string($job-id))
 		let $uri-query := map:get($job-uriquery-map, fn:string($job-id))[1]
@@ -392,12 +426,14 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 					let $host-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:completed"), ("map"), $job-query)
 					for $host-id in map:keys($progress-map)
 					let $hostname := xdmp:host-name(xs:unsignedLong($host-id))
+					let $progress := (map:get($host-total-map, $host-id) - map:get(map:get($progress-map, $host-id), fn:string($job-id)), 0)[1]
+					let $total := (map:get($host-total-map, $host-id), 0)[1]
 					return
 						element {fn:QName("http://marklogic.com/xdmp/json/basic", $hostname)} {
 							attribute type {"object"},
 							<status type="string">{map:get($host-status-map, $host-id)}</status>,
-							<progress type="number">{map:get($host-total-map, $host-id) - map:get(map:get($progress-map, $host-id), fn:string($job-id))}</progress>,
-							<total type="number">{map:get($host-total-map, $host-id)}</total>,
+							<progress type="number">{$progress}</progress>,
+							<total type="number">{$total}</total>,
 							<created type="string">{map:get($host-created-map, $host-id)}</created>,
 							if (fn:exists(map:get($host-completed-map, $host-id))) then
 								<completed type="string">{map:get($host-completed-map, $host-id)}</completed>

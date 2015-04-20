@@ -28,7 +28,6 @@ $(document).ready(function() {
 		$(this).html('<strong>' + $(this).text() + '</strong>');
 		clearInterval(updateTimer);
 		refreshData();
-		updateTimer = setInterval(refreshData, refreshRate);
 		$.cookie("refresh_rate", refreshRate.toString(), {expires: 999});
 	});
 
@@ -42,7 +41,6 @@ $(document).ready(function() {
 		.done(function(data) {
 			clearInterval(updateTimer);
 			refreshData();
-			updateTimer = setInterval(refreshData, 1000);
 		});
 	});
 
@@ -101,8 +99,7 @@ $(document).ready(function() {
 			$('#message').fadeIn('fast');
 			$('#message').delay(4000).fadeOut('slow');
 			clearInterval(updateTimer);
-			setTimeout(refreshData, 1000);
-			updateTimer = setInterval(refreshData, refreshRate);
+			updateTimer = setTimeout(refreshData, 1000);
 			$('.nav li').eq(0).find('a[data-toggle="tab"]').click();
 		})
 		.fail(createFailed);
@@ -125,7 +122,7 @@ $(document).ready(function() {
 			var otherJobs = [];
 			for (var key in data['results']) {
 				var job = data['results'][key];
-				if (job['status'] == 'running') {
+				if (job['status'] == 'running' || job['status'] == 'initializing') {
 					runningJobs.push(job);
 				} else {
 					otherJobs.push(job);
@@ -133,6 +130,9 @@ $(document).ready(function() {
 			}
 			$('#running_jobs_table tbody').html($('#running_row_tmpl').render(runningJobs));
 			$('#job_history_table tbody').html($('#history_row_tmpl').render(otherJobs));
+		})
+		.always(function() {
+			updateTimer = setTimeout(refreshData, refreshRate);
 		});
 	}
 
@@ -150,5 +150,4 @@ $(document).ready(function() {
 	menuItem.html('<strong>' + menuItem.text() + '</strong>');
 
 	refreshData();
-	updateTimer = setInterval(refreshData, refreshRate);
 });
