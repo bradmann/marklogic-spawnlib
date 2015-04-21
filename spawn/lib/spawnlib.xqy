@@ -395,7 +395,12 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 		let $total-progress := (fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get($progress-map, $host-id), fn:string($job-id)))), 0)[1]
 		let $total-tasks := (fn:sum(map:get($job-totals-map, fn:string($job-id))), 0)[1]
 		let $statuses := map:get($job-status-map, fn:string($job-id))
-		let $overall-status := if ($statuses = "running") then "running" else if ($statuses = "killed") then "killed" else if ($statuses = "initializing") then "initializing" else "complete"
+		let $overall-status :=
+			if ($statuses = "error") then "error"
+			else if ($statuses = "running") then "running"
+			else if ($statuses = "killed") then "killed"
+			else if ($statuses = "initializing") then "initializing"
+			else "complete"
 		let $created-date := fn:min(map:get($job-created-map, fn:string($job-id)))
 		let $completed-dateTimes := map:get($job-completed-map, fn:string($job-id))
 		let $uri-query := map:get($job-uriquery-map, fn:string($job-id))[1]
