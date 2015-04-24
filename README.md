@@ -26,5 +26,5 @@ let $options :=
 		<result>true</result> <!-- This just means wait until the URIs query is complete before returning, otherwise the call below returns immediately -->
 	</options>
 return spawnlib:corb($uris-query, $xform-query, $options) 
-(: The return value from this is a job ID (useless atm) and the http response from each of the nodes in your cluster :)
 ```
+NB: DISABLE THE REBALANCER BEFORE USING SPAWNLIB
