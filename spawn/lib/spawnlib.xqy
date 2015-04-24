@@ -103,7 +103,7 @@ declare variable $INIT-JOBDOC := '
 		xdmp:node-insert-child($jobdoc/spawnlib:job, <spawnlib:total>{$total-tasks}</spawnlib:total>)
 		,
 		if (fn:exists($error)) then
-			xdmp:node-insert-child($jobdoc/spawnlib:job, <spawnlib:error>{$error}</spawnlib:error>)
+			xdmp:node-insert-child($jobdoc/spawnlib:job, <spawnlib:uri-error>{$error}</spawnlib:uri-error>)
 		else ()
 	)
 ';
@@ -111,20 +111,33 @@ declare variable $INIT-JOBDOC := '
 declare variable $SINGLE-TASK-COMPLETE := '
 	xquery version "1.0-ml";
 	declare namespace spawnlib = "http://marklogic.com/spawnlib";
+	declare namespace error = "http://marklogic.com/xdmp/error";
 	declare variable $job-id external;
 	declare variable $task-number external;
+	declare variable $error external := ();
+	declare variable $URI external;
 	declare variable $host-id := fn:string(xdmp:host());
 	let $progress-uri := "/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml"
 	let $_ := xdmp:lock-for-update($progress-uri)
 	let $progress-map := xdmp:get-server-field("spawnlib:progress-" || $job-id)
+	let $error-map := (xdmp:get-server-field("spawnlib:error-" || $job-id), map:map())[1]
 	return
 		(
 			map:put($progress-map, xs:string($task-number), ()),
+			if (fn:exists($error)) then
+				let $_ := map:put($error-map, fn:string($URI), $error/error:format-string/fn:string())
+				return xdmp:set-server-field("spawnlib:error-" || $job-id, $error-map)
+			else (),
 			if (map:count($progress-map) eq 0 and $task-number ne 0) then
 				(
 					xdmp:set-server-field("spawnlib:progress-" || $job-id, ()),
-					xdmp:node-replace(fn:doc($progress-uri)//spawnlib:status/text(), text{"complete"}),
-					xdmp:node-insert-after(fn:doc($progress-uri)/spawnlib:job/spawnlib:status, <spawnlib:completed>{fn:current-dateTime()}</spawnlib:completed>)
+					if (map:count($error-map) gt 0) then
+						xdmp:node-replace(fn:doc($progress-uri)//spawnlib:status/text(), text{"error"})
+					else
+						xdmp:node-replace(fn:doc($progress-uri)//spawnlib:status/text(), text{"complete"}),
+					xdmp:node-insert-after(fn:doc($progress-uri)/spawnlib:job/spawnlib:status, <spawnlib:completed>{fn:current-dateTime()}</spawnlib:completed>),
+					if (map:count($error-map) gt 0) then xdmp:node-insert-child(fn:doc($progress-uri)/spawnlib:job, <spawnlib:transform-errors>{<x>{$error-map}</x>/node()}</spawnlib:transform-errors>) else (),
+					xdmp:set-server-field("spawnlib:errors-" || $job-id, ())
 				)
 			else ()
 		)
@@ -147,7 +160,7 @@ declare variable $POISON-PILL := '
 	declare variable $job-id external;
 	declare variable $host-id := fn:string(xdmp:host());
 	if ($job-id eq 0) then
-		for $progress-doc in xdmp:directory("/spawnlib-jobs/", "infinity")[.//*:status eq "running"]
+		for $progress-doc in xdmp:directory("/spawnlib-jobs/", "infinity")[.//*:status eq "running" or .//*:status eq "initializing"]
 		return
 			(
 				xdmp:set-server-field("spawnlib:kill-" || $progress-doc//*:job-id/fn:string(), fn:true()),
@@ -156,7 +169,7 @@ declare variable $POISON-PILL := '
 	else
 		let $progress-doc := fn:doc("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml")
 		return
-			if ($progress-doc//*:status eq "running") then
+			if ($progress-doc//*:status eq "running" or $progress-doc//*:status eq "initializing") then
 				(
 					xdmp:set-server-field("spawnlib:kill-" || fn:string($job-id), fn:true()),
 					xdmp:node-replace($progress-doc//*:status/text(), text{"killed"})
@@ -250,10 +263,14 @@ declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map,
 					()
 				else
 					(
-						if ($inforest) then
-							spawnlib:inforest-eval($q, $varsmap, $options)
-						else
-							spawnlib:eval($q, $varsmap, $options),
+						try {
+							if ($inforest) then
+								spawnlib:inforest-eval($q, $varsmap, $options)
+							else
+								spawnlib:eval($q, $varsmap, $options)
+						} catch ($e) {
+							map:put($varsmap, "error", $e)
+						},
 						if ($job-id eq 0 or $priority eq "higher") then () else spawnlib:inforest-eval($SINGLE-TASK-COMPLETE, $varsmap, ()),
 						xdmp:commit()
 					)
@@ -322,7 +339,6 @@ declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:s
 declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:string, $name as xs:string?, $options as node()?) {
 	let $job-id := xdmp:hash64(fn:string(fn:current-dateTime()))
 	let $options := spawnlib:merge-options($options)
-	let $name := ($name, "")[1]
 	let $result-map :=
 		spawnlib:farm(
 			$CORB-SCRIPT,
@@ -381,26 +397,32 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 		return map:put($progress-map, $host-id, $result)
 
 	let $q := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-ids)
-	let $job-name-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:name"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $q)
-	let $job-totals-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:total"), ("map"), $q)
-	let $job-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:status"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $q)
-	let $job-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:created"), ("map"), $q)
-	let $job-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:completed"), ("map"), $q)
-	let $job-uriquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:uri-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $q)
-	let $job-transformquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:transform-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $q)
+	let $job-name-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:name"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
+	let $job-totals-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:total"), ("map", "concurrent"), $q)
+	let $job-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:status"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
+	let $job-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:created"), ("map", "concurrent"), $q)
+	let $job-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:completed"), ("map", "concurrent"), $q)
+	let $job-uriquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:uri-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
+	let $job-transformquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:transform-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
+	let $job-totals :=
+		cts:value-tuples(
+			(cts:element-reference(xs:QName("spawnlib:job-id")), cts:element-reference(xs:QName("spawnlib:host-id")), cts:element-reference(xs:QName("spawnlib:total"))),
+			("concurrent"),
+			$q
+		)
 
 	let $job-objects :=
 		for $job-id in $job-ids
-		let $name := map:get($job-name-map, fn:string($job-id))
-		let $total-progress := (fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get($progress-map, $host-id), fn:string($job-id)))), 0)[1]
-		let $total-tasks := (fn:sum(map:get($job-totals-map, fn:string($job-id))), 0)[1]
 		let $statuses := map:get($job-status-map, fn:string($job-id))
 		let $overall-status :=
 			if ($statuses = "error") then "error"
+			else if ($statuses = "initializing") then "initializing"
 			else if ($statuses = "running") then "running"
 			else if ($statuses = "killed") then "killed"
-			else if ($statuses = "initializing") then "initializing"
 			else "complete"
+		let $name := map:get($job-name-map, fn:string($job-id))
+		let $total-progress := (fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get($progress-map, $host-id), fn:string($job-id)))), 0)[1]
+		let $total-tasks := (fn:sum(for $total in $job-totals return if ($total[1] eq $job-id) then $total[3] else ()), 0)[1]
 		let $created-date := fn:min(map:get($job-created-map, fn:string($job-id)))
 		let $completed-dateTimes := map:get($job-completed-map, fn:string($job-id))
 		let $uri-query := map:get($job-uriquery-map, fn:string($job-id))[1]
