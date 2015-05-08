@@ -339,13 +339,15 @@ declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:s
 declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:string, $name as xs:string?, $options as node()?) {
 	let $job-id := xdmp:hash64(fn:string(fn:current-dateTime()))
 	let $options := spawnlib:merge-options($options)
+	let $name := ($name, "")[1]
 	let $result-map :=
 		spawnlib:farm(
 			$CORB-SCRIPT,
 			(xs:QName('uri-query'), $uri-query, xs:QName('transform-query'), $transform-query, xs:QName('job-id'), $job-id, xs:QName('task-number'), 0, xs:QName('name'), $name, xs:QName('options'), $options),
 			<options xmlns="xdmp:eval">
 			{
-				functx:remove-elements-deep($options, ("inforest", "result"))/node()
+				functx:remove-elements-deep($options, ("inforest", "result"))/node(),
+				<priority>higher</priority>
 			}
 			</options>
 		)
@@ -433,8 +435,16 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 				<id type="string">{$job-id}</id>
 				<name type="string">{$name}</name>
 				<status type="string">{$overall-status}</status>
-				<progress type="number">{$total-tasks - $total-progress}</progress>
-				<total type="number">{$total-tasks}</total>
+				{
+					if ($overall-status ne "initializing") then
+						<progress type="number">{$total-tasks - $total-progress}</progress>
+					else ()
+				}
+				{
+					if ($overall-status ne "initializing") then
+						<total type="number">{$total-tasks}</total>
+					else ()
+				}
 				<created type="string">{$created-date}</created>
 				{
 					if (fn:count($completed-dateTimes) eq map:count($progress-map)) then
