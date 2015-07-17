@@ -439,7 +439,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 	let $job-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:completed"), ("map", "concurrent"), $q)
 	let $job-uriquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:uri-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
 	let $job-transformquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:transform-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
-	let $job-throttle-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:throttle"), ("map"), $q)
+	let $job-throttle-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:throttle"), ("map", "concurrent"), $q)
 	let $job-totals :=
 		cts:value-tuples(
 			(cts:element-reference(xs:QName("spawnlib:job-id")), cts:element-reference(xs:QName("spawnlib:host-id")), cts:element-reference(xs:QName("spawnlib:total"))),

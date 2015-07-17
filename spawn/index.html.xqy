@@ -145,7 +145,7 @@ xdmp:set-response-content-type("text/html"),
 			</div>
 		</div>
 
-		<div class="navbar navbar-fixed-bottom">
+		<div class="navbar navbar-fixed-bottom" style="display: none">
 			<div id="message" class="alert alert-info" style="display: none">
 				<span id="message_text">This is an system message.</span>
 				<button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>

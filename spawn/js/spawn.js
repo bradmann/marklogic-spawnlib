@@ -116,10 +116,11 @@ $(document).ready(function() {
 				return;
 			}
 			var id = json['id'];
+			$('#message').parent().show();
 			$('#message').removeClass("alert-warning alert-info alert-danger").addClass("alert-success");
 			$('#message_text').html(msg);
 			$('#message').fadeIn('fast');
-			$('#message').delay(4000).fadeOut('slow');
+			$('#message').delay(4000).fadeOut('slow', function() {$('#message').parent().hide()});
 			clearTimeout(updateTimer);
 			updateTimer = setTimeout(refreshData, 1000);
 			$('.nav li').eq(0).find('a[data-toggle="tab"]').click();
@@ -128,10 +129,11 @@ $(document).ready(function() {
 	};
 
 	function createFailed(jqXHR, textStatus, errorThrown) {
+		$('#message').parent().show();
 		$('#message').removeClass("alert-warning alert-info alert-success").addClass("alert-danger");
 		$('#message_text').html('<p class="error"><strong>Oops! </strong>' + errorThrown + '</p>');
 		$('#message').fadeIn('fast');
-		$('#message').delay(4000).fadeOut('slow');
+		$('#message').delay(4000).fadeOut('slow', function() {$('#message').parent().hide()});
 	}
 
 	function refreshData() {
