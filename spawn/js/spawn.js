@@ -26,9 +26,14 @@ $(document).ready(function() {
 				return $('<div>' + html + '</div>').text();
 			});
 		$(this).html('<strong>' + $(this).text() + '</strong>');
-		clearInterval(updateTimer);
+		clearTimeout(updateTimer);
 		refreshData();
 		$.cookie("refresh_rate", refreshRate.toString(), {expires: 999});
+	});
+
+	$('#new_spawn_throttle a').click(function(evt, ui) {
+		var throttle = $(this).text();
+		$(this).parents('.dropdown').children('button').attr('value', throttle).contents().first().replaceWith(throttle.toString() + " ");
 	});
 
 	$('body').on('click', 'button.kill', function(evt, ui) {
@@ -39,7 +44,7 @@ $(document).ready(function() {
 			data: {"job-id": id}
 		})
 		.done(function(data) {
-			clearInterval(updateTimer);
+			clearTimeout(updateTimer);
 			refreshData();
 		});
 	});
@@ -61,9 +66,24 @@ $(document).ready(function() {
 			data: {"job-id": id}
 		})
 		.done(function(data) {
-			clearInterval(updateTimer);
+			clearTimeout(updateTimer);
 			refreshData();
-			updateTimer = setInterval(refreshData, 1000);
+		});
+	});
+
+	$('body').on('click', 'div.throttle-dropdown a', function(evt, ui) {
+		evt.preventDefault();
+		var id = $(this).parents('.dropdown-menu').attr('data-job-id');
+		var throttle = parseInt($(this).text());
+		$(this).parents('.dropdown').children('button').contents().first().replaceWith(throttle.toString() + " ");
+		$.ajax({
+			url: "throttle.xqy",
+			type: "POST",
+			data: {"job-id": id, "throttle": throttle}
+		})
+		.done(function(data) {
+			clearTimeout(updateTimer);
+			refreshData();
 		});
 	});
 
@@ -72,11 +92,13 @@ $(document).ready(function() {
 		var xq = xformEditor.getValue();
 
 		var inforest = $('#inforest').is(':checked');
+		var throttle = $('#new_spawn_throttle button').attr('value');
 
 		var data = {
 			'uris-query': uriq,
 			'xform-query': xq,
-			'inforest': inforest
+			'inforest': inforest,
+			'throttle': throttle
 		};
 
 		$.ajax({
@@ -98,7 +120,7 @@ $(document).ready(function() {
 			$('#message_text').html(msg);
 			$('#message').fadeIn('fast');
 			$('#message').delay(4000).fadeOut('slow');
-			clearInterval(updateTimer);
+			clearTimeout(updateTimer);
 			updateTimer = setTimeout(refreshData, 1000);
 			$('.nav li').eq(0).find('a[data-toggle="tab"]').click();
 		})
@@ -113,27 +135,29 @@ $(document).ready(function() {
 	}
 
 	function refreshData() {
-		$.ajax({
-			url: "progress.xqy",
-			type: "GET"
-		})
-		.done(function(data) {
-			var runningJobs = [];
-			var otherJobs = [];
-			for (var key in data['results']) {
-				var job = data['results'][key];
+		if (!$('.dropdown').hasClass('open')) {
+			$.ajax({
+				url: "progress.xqy",
+				type: "GET"
+			})
+			.done(function(data) {
+				var runningJobs = [];
+				var otherJobs = [];
+				for (var key in data['results']) {
+					var job = data['results'][key];
 				if (job['status'] == 'running' || job['status'] == 'initializing') {
-					runningJobs.push(job);
-				} else {
-					otherJobs.push(job);
+						runningJobs.push(job);
+					} else {
+						otherJobs.push(job);
+					}
 				}
-			}
-			$('#running_jobs_table tbody').html($('#running_row_tmpl').render(runningJobs));
-			$('#job_history_table tbody').html($('#history_row_tmpl').render(otherJobs));
-		})
-		.always(function() {
-			updateTimer = setTimeout(refreshData, refreshRate);
-		});
+				$('#running_jobs_table tbody').html($('#running_row_tmpl').render(runningJobs));
+				$('#job_history_table tbody').html($('#history_row_tmpl').render(otherJobs));
+			})
+			.always(function() {
+				updateTimer = setTimeout(refreshData, refreshRate);
+			});
+		}
 	}
 
 	var refresh = $.cookie("refresh_rate");

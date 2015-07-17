@@ -10,10 +10,12 @@ try {
 	let $uris-query := xdmp:get-request-field("uris-query")
 	let $xform-query := xdmp:get-request-field("xform-query")
 	let $inforest := xs:boolean((xdmp:get-request-field("inforest"), "true")[1])
+	let $throttle := xs:integer((xdmp:get-request-field("throttle"), 10)[1])
 
 	let $options :=
 		<options xmlns="xdmp:eval">
 			<inforest>{$inforest}</inforest>
+			<throttle>{$throttle}</throttle>
 		</options>
 
 	let $response := spawnlib:corb($uris-query, $xform-query, "Spawn UI", $options)

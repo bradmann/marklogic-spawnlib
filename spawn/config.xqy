@@ -25,5 +25,6 @@ declare variable $c:OPTIONS :=
 			<username>admin</username>
 			<password>ML1234</password>
 		</authentication>
+		<throttle>10</throttle>
 	</options>
 ;
