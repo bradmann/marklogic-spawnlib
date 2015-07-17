@@ -64,6 +64,13 @@ let $indexes :=
 				<localname>completed</localname>
 				<range-value-positions>false</range-value-positions>
 			</range-element-index>
+
+			<range-element-index>
+				<scalar-type>int</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>throttle</localname>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
 		</range-element-indexes>
 
 let $config := admin:get-configuration()
