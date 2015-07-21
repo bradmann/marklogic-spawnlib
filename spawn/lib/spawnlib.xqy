@@ -19,6 +19,7 @@ declare variable $CORB-SCRIPT := '
 	declare variable $name external;
 	declare variable $job-id external;
 	declare variable $throttle := xs:int(($options//*:throttle, 10)[1]);
+	declare variable $language := ($options//*:language, "xquery")[1];
 	let $error := ()
 	let $varsmap := map:map()
 	let $_ := map:put($varsmap, "job-id", $job-id)
@@ -30,11 +31,11 @@ declare variable $CORB-SCRIPT := '
 	let $create-job-doc := spawnlib:inforest-eval($spawnlib:CREATE-JOBDOC, $varsmap, ())
 	let $uris :=
 		try {
-			spawnlib:inforest-eval-query($uri-query, (), ())
+			spawnlib:inforest-eval-query($uri-query, (), (), $language)
 		} catch ($e) {
 			xdmp:set($error, $e)
 		}
-
+	let $uris := if ($language = "javascript") then json:array-values($uris, fn:true()) else $uris
 	let $cnt := fn:count($uris)
 	let $status :=
 		if ($cnt eq 0 and fn:empty($error)) then
@@ -47,7 +48,7 @@ declare variable $CORB-SCRIPT := '
 	let $_ := map:put($varsmap, "total-tasks", $cnt)
 	let $_ := map:put($varsmap, "status", $status)
 	let $_ := map:put($varsmap, "error", $error)
-	let $create-job-doc := spawnlib:inforest-eval($spawnlib:INIT-JOBDOC, $varsmap, ())
+	let $init-job-doc := spawnlib:inforest-eval($spawnlib:INIT-JOBDOC, $varsmap, ())
 	for $uri at $x in $uris
 	return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri, xs:QName("job-id"), $job-id, xs:QName("task-number"), $x), $options)
 ';
@@ -75,6 +76,8 @@ declare variable $CREATE-JOBDOC := '
 				<throttle>{$throttle}</throttle>
 				<uri-query>{$uri-query}</uri-query>
 				<transform-query>{$transform-query}</transform-query>
+				<inforest>{($options//*:inforest/fn:string(), "false")[1]}</inforest>
+				<language>{($options//*:language/fn:string(), "xquery")[1]}</language>
 				<options>{$options}</options>
 			</job>
 		)
@@ -252,34 +255,77 @@ declare function spawnlib:forest-ids-to-string($forests as xs:unsignedLong+) as 
 };
 
 declare function spawnlib:eval($q as xs:string, $varsmap as map:map?, $options as node()?) {
-	xdmp:eval(
-		$q,
-		(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
-		functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle"))
-	)
+	spawnlib:eval($q, $varsmap, $options, "xquery")
+};
+
+declare function spawnlib:eval($q as xs:string, $varsmap as map:map?, $options as node()?, $language as xs:string) {
+	if ($language = "xquery") then
+		xdmp:eval(
+			$q,
+			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
+			functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
+		)
+	else
+		xdmp:apply(
+			xdmp:function(xs:QName("xdmp:javascript-eval")),
+			$q,
+			$varsmap,
+			functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
+		)
 };
 
 declare function spawnlib:inforest-eval($q as xs:string, $varsmap as map:map?, $options as node()?) {
-	xdmp:eval(
-		$q,
-		(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
-		<options xmlns="xdmp:eval">
-			{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle"))/node()}
-			<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
-		</options>
-	)
+	spawnlib:inforest-eval($q, $varsmap, $options, "xquery")
+};
+
+declare function spawnlib:inforest-eval($q as xs:string, $varsmap as map:map?, $options as node()?, $language as xs:string) {
+	if ($language = "xquery") then
+		xdmp:eval(
+			$q,
+			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
+			<options xmlns="xdmp:eval">
+				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
+			</options>
+		)
+	else
+		xdmp:apply(
+			xdmp:function(xs:QName("xdmp:javascript-eval")),
+			$q,
+			$varsmap,
+			<options xmlns="xdmp:eval">
+				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
+			</options>
+		)
 };
 
 declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:map?, $options as node()?) {
-	xdmp:eval(
-		$q,
-		(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
-		<options xmlns="xdmp:eval">
-			{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle"))/node()}
-			<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
-			<transaction-mode>query</transaction-mode>
-		</options>
-	)
+	spawnlib:inforest-eval-query($q, $varsmap, $options, "xquery")
+};
+
+declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:map?, $options as node()?, $language as xs:string) {
+	if ($language = "xquery") then
+		xdmp:eval(
+			$q,
+			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
+			<options xmlns="xdmp:eval">
+				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
+				<transaction-mode>query</transaction-mode>
+			</options>
+		)
+	else
+		xdmp:apply(
+			xdmp:function(xs:QName("xdmp:javascript-eval")),
+			$q,
+			$varsmap,
+			<options xmlns="xdmp:eval">
+				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
+				<transaction-mode>query</transaction-mode>
+			</options>
+		)
 };
 
 declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map, $options as node()?) {
@@ -290,6 +336,7 @@ declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map,
 			let $priority := ($options//*:priority/fn:string(), "normal")[1]
 			let $inforest := xs:boolean(($options//*:inforest/fn:string(), "false")[1])
 			let $throttle := xdmp:get-server-field("spawnlib:throttle-" || $job-id)
+			let $language := if ($priority = "higher") then "xquery" else ($options//*:language/fn:string(), "xquery")[1]
 			let $_ := if ($throttle lt 10) then xdmp:sleep(xs:int((xs:double(1) div $throttle) * 1000)) else ()
 			return
 				if ($kill and ($priority = "normal")) then
@@ -298,9 +345,9 @@ declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map,
 					(
 						try {
 							if ($inforest) then
-								spawnlib:inforest-eval($q, $varsmap, $options)
+								spawnlib:inforest-eval($q, $varsmap, $options, $language)
 							else
-								spawnlib:eval($q, $varsmap, $options)
+								spawnlib:eval($q, $varsmap, $options, $language)
 						} catch ($e) {
 							map:put($varsmap, "error", $e)
 						},
@@ -308,7 +355,7 @@ declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map,
 						xdmp:commit()
 					)
 		},
-		functx:remove-elements-deep($options, ("inforest", "appserver", "authentication", "throttle"))
+		functx:remove-elements-deep($options, ("inforest", "appserver", "authentication", "throttle", "inforest", "language"))
 	)
 };
 
@@ -401,10 +448,10 @@ declare function spawnlib:merge-options($options as element()?) {
 };
 
 declare function spawnlib:check-progress() {
-	spawnlib:check-progress(())
+	spawnlib:check-progress((), "normal")
 };
 
-declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
+declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as xs:string) {
 	let $job-ids :=
 		if (fn:empty($job-id)) then
 			cts:element-values(xs:QName("spawnlib:job-id"), (), (), ())
@@ -437,8 +484,16 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 	let $job-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:status"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
 	let $job-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:created"), ("map", "concurrent"), $q)
 	let $job-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:completed"), ("map", "concurrent"), $q)
-	let $job-uriquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:uri-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
-	let $job-transformquery-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:transform-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
+	let $job-inforest-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:inforest"), ("map", "concurrent"), $q)
+	let $job-language-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:language"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
+	let $job-uriquery-map :=
+		if ($detail = "full") then
+			cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:uri-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
+		else ()
+	let $job-transformquery-map :=
+		if ($detail = "full") then
+			cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:transform-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
+		else ()
 	let $job-throttle-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:throttle"), ("map", "concurrent"), $q)
 	let $job-totals :=
 		cts:value-tuples(
@@ -461,6 +516,8 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 		let $total-tasks := (fn:sum(for $total in $job-totals return if ($total[1] eq $job-id) then $total[3] else ()), 0)[1]
 		let $created-date := fn:min(map:get($job-created-map, fn:string($job-id)))
 		let $completed-dateTimes := map:get($job-completed-map, fn:string($job-id))
+		let $inforest := (map:get($job-inforest-map, fn:string($job-id))[1], fn:false())[1]
+		let $language := (map:get($job-language-map, fn:string($job-id))[1], "xquery")[1]
 		let $uri-query := map:get($job-uriquery-map, fn:string($job-id))[1]
 		let $transform-query := map:get($job-transformquery-map, fn:string($job-id))[1]
 		let $throttle := (map:get($job-throttle-map, fn:string($job-id))[1], 10)[1]
@@ -469,6 +526,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 			<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
 				<id type="string">{$job-id}</id>
 				<name type="string">{$name}</name>
+				<language type="string">{$language}</language>
 				<status type="string">{$overall-status}</status>
 				{
 					if ($overall-status ne "initializing") then
@@ -488,33 +546,44 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
 					else
 						()
 				}
-				<uriquery type="string">{$uri-query}</uriquery>
-				<transformquery type="string">{$transform-query}</transformquery>
-				<hoststatus type="object">
+				<inforest type="boolean">{$inforest}</inforest>
 				{
-					let $job-query := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-id)
-					let $host-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:status"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $job-query)
-					let $host-total-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:total"), ("map"), $job-query)
-					let $host-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:created"), ("map"), $job-query)
-					let $host-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:completed"), ("map"), $job-query)
-					for $host-id in map:keys($progress-map)
-					let $hostname := xdmp:host-name(xs:unsignedLong($host-id))
-					let $progress := (map:get($host-total-map, $host-id) - map:get(map:get($progress-map, $host-id), fn:string($job-id)), 0)[1]
-					let $total := (map:get($host-total-map, $host-id), 0)[1]
-					return
-						element {fn:QName("http://marklogic.com/xdmp/json/basic", $hostname)} {
-							attribute type {"object"},
-							<status type="string">{map:get($host-status-map, $host-id)}</status>,
-							<progress type="number">{$progress}</progress>,
-							<total type="number">{$total}</total>,
-							<created type="string">{map:get($host-created-map, $host-id)}</created>,
-							if (fn:exists(map:get($host-completed-map, $host-id))) then
-								<completed type="string">{map:get($host-completed-map, $host-id)}</completed>
-							else
-								()
-						}
+					if ($detail = "full") then
+						(
+							<uriquery type="string">{$uri-query}</uriquery>,
+							<transformquery type="string">{$transform-query}</transformquery>
+						)
+					else ()
 				}
-				</hoststatus>
+				{
+					if ($detail = "full") then
+						<hoststatus type="object">
+						{
+							let $job-query := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-id)
+							let $host-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:status"), ("map", "collation-2=http://marklogic.com/collation/codepoint"), $job-query)
+							let $host-total-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:total"), ("map"), $job-query)
+							let $host-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:created"), ("map"), $job-query)
+							let $host-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:completed"), ("map"), $job-query)
+							for $host-id in map:keys($progress-map)
+							let $hostname := xdmp:host-name(xs:unsignedLong($host-id))
+							let $progress := (map:get($host-total-map, $host-id) - map:get(map:get($progress-map, $host-id), fn:string($job-id)), 0)[1]
+							let $total := (map:get($host-total-map, $host-id), 0)[1]
+							return
+								element {fn:QName("http://marklogic.com/xdmp/json/basic", $hostname)} {
+									attribute type {"object"},
+									<status type="string">{map:get($host-status-map, $host-id)}</status>,
+									<progress type="number">{$progress}</progress>,
+									<total type="number">{$total}</total>,
+									<created type="string">{map:get($host-created-map, $host-id)}</created>,
+									if (fn:exists(map:get($host-completed-map, $host-id))) then
+										<completed type="string">{map:get($host-completed-map, $host-id)}</completed>
+									else
+										()
+								}
+						}
+						</hoststatus>
+					else ()
+				}
 			</json>
 	return
 		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">

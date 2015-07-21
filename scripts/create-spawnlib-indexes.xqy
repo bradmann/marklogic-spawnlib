@@ -51,6 +51,13 @@ let $indexes :=
 				<collation>http://marklogic.com/collation/codepoint</collation>
 				<range-value-positions>false</range-value-positions>
 			</range-element-index>
+			<range-element-index>
+				<scalar-type>string</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>language</localname>
+				<collation>http://marklogic.com/collation/codepoint</collation>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
 
 			<range-element-index>
 				<scalar-type>dateTime</scalar-type>
@@ -69,6 +76,13 @@ let $indexes :=
 				<scalar-type>int</scalar-type>
 				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
 				<localname>throttle</localname>
+				<range-value-positions>false</range-value-positions>
+			</range-element-index>
+
+			<range-element-index>
+				<scalar-type>string</scalar-type>
+				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
+				<localname>inforest</localname>
 				<range-value-positions>false</range-value-positions>
 			</range-element-index>
 		</range-element-indexes>

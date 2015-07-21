@@ -32,8 +32,17 @@ $(document).ready(function() {
 	});
 
 	$('#new_spawn_throttle a').click(function(evt, ui) {
+		evt.preventDefault();
 		var throttle = $(this).text();
 		$(this).parents('.dropdown').children('button').attr('value', throttle).contents().first().replaceWith(throttle.toString() + " ");
+	});
+
+	$('#language_dropdown a').click(function(evt, ui) {
+		evt.preventDefault();
+		var language = $(this).text();
+		$(this).parents('.dropdown').children('button').attr('value', language.toLowerCase()).contents().first().replaceWith(language.toString() + " ");
+		urisEditor.setOption("mode", language.toLowerCase());
+		xformEditor.setOption("mode", language.toLowerCase());
 	});
 
 	$('body').on('click', 'button.kill', function(evt, ui) {
@@ -51,11 +60,30 @@ $(document).ready(function() {
 
 	$('table').on('click', '.task_link', function(evt, ui) {
 		evt.preventDefault();
-		var uri_query = $(this).parents('tr').find('input.uri_query').val();
-		var xform_query = $(this).parents('tr').find('input.transform_query').val();
-		urisEditor.getDoc().setValue(uri_query);
-		xformEditor.getDoc().setValue(xform_query);
-		$('.nav li').eq(1).find('a[data-toggle="tab"]').click();
+		var jobID = $(this).text();
+		$.ajax({
+			url: "progress.xqy",
+			data: {"job-id": jobID, "detail": "full"},
+			type: "GET"
+		})
+		.done(function(data) {
+			var success = data['success'];
+			var msg = data['message'];
+			if (!success) {
+				showError(null, null, msg);
+				return;
+			}
+			var job = data['results'][0];
+			urisEditor.getDoc().setValue(job['uriquery']);
+			xformEditor.getDoc().setValue(job['transformquery']);
+			urisEditor.setOption("mode", job['language']);
+			xformEditor.setOption("mode", job['language']);
+			$('#new_spawn_throttle button').val(job['throttle']).contents().first().replaceWith(job['throttle'] + " ");
+			$('#language_dropdown button').val(job['language']).contents().first().replaceWith(job['language'] + " ");
+			$('#inforest').prop('checked', job['inforest']);
+			$('.nav li').eq(1).find('a[data-toggle="tab"]').click();
+		})
+		.fail(showError);
 	});
 
 	$('body').on('click', 'button.remove', function(evt, ui) {
@@ -93,12 +121,14 @@ $(document).ready(function() {
 
 		var inforest = $('#inforest').is(':checked');
 		var throttle = $('#new_spawn_throttle button').attr('value');
+		var language = $('#language_dropdown button').attr('value');
 
 		var data = {
 			'uris-query': uriq,
 			'xform-query': xq,
 			'inforest': inforest,
-			'throttle': throttle
+			'throttle': throttle,
+			'language': language
 		};
 
 		$.ajax({
@@ -112,7 +142,7 @@ $(document).ready(function() {
 			var success = json['success'];
 			var msg = json['message'];
 			if (!success) {
-				createFailed(null, null, msg);
+				showError(null, null, msg);
 				return;
 			}
 			var id = json['id'];
@@ -125,10 +155,10 @@ $(document).ready(function() {
 			updateTimer = setTimeout(refreshData, 1000);
 			$('.nav li').eq(0).find('a[data-toggle="tab"]').click();
 		})
-		.fail(createFailed);
+		.fail(showError);
 	};
 
-	function createFailed(jqXHR, textStatus, errorThrown) {
+	function showError(jqXHR, textStatus, errorThrown) {
 		$('#message').parent().show();
 		$('#message').removeClass("alert-warning alert-info alert-success").addClass("alert-danger");
 		$('#message_text').html('<p class="error"><strong>Oops! </strong>' + errorThrown + '</p>');
@@ -147,7 +177,7 @@ $(document).ready(function() {
 				var otherJobs = [];
 				for (var key in data['results']) {
 					var job = data['results'][key];
-				if (job['status'] == 'running' || job['status'] == 'initializing') {
+					if (job['status'] == 'running' || job['status'] == 'initializing') {
 						runningJobs.push(job);
 					} else {
 						otherJobs.push(job);
@@ -155,10 +185,9 @@ $(document).ready(function() {
 				}
 				$('#running_jobs_table tbody').html($('#running_row_tmpl').render(runningJobs));
 				$('#job_history_table tbody').html($('#history_row_tmpl').render(otherJobs));
-			})
-			.always(function() {
+			}).always(function() {
 				updateTimer = setTimeout(refreshData, refreshRate);
-			});
+ 			});
 		}
 	}
 

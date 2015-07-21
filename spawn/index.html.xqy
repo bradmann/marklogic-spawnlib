@@ -82,7 +82,7 @@ xdmp:set-response-content-type("text/html"),
 				<div class="panel panel-default">
 					<div class="panel-heading"><h3 class="panel-title">Active Jobs</h3></div>
 					<table class="table table-striped" id="running_jobs_table">
-						<thead><tr><th>id</th><th>name</th><th>status</th><th>created</th><th>progress</th><th>total tasks</th><th>throttle</th><th></th></tr></thead>
+						<thead><tr><th>id</th><th>name</th><th>language</th><th>status</th><th>inforest</th><th>created</th><th>progress</th><th>total tasks</th><th>throttle</th><th></th></tr></thead>
 						<tbody>
 						</tbody>
 					</table>
@@ -90,7 +90,7 @@ xdmp:set-response-content-type("text/html"),
 				<div class="panel panel-default">
 					<div class="panel-heading"><h3 class="panel-title">Inactive Jobs</h3></div>
 					<table class="table table-striped" id="job_history_table">
-						<thead><tr><th>id</th><th>name</th><th>status</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
+						<thead><tr><th>id</th><th>name</th><th>language</th><th>status</th><th>inforest</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
 						<tbody>
 						</tbody>
 					</table>
@@ -98,15 +98,33 @@ xdmp:set-response-content-type("text/html"),
 			</div>
 			<div id="tab2" class="tab-pane fade container col-md-10 col-md-offset-1">
 				<div class="panel panel-default">
-					<div class="panel-heading"><h3 class="panel-title">Run CoRB Job</h3></div>
+					<div class="panel-heading">
+						<div class="pull-right">
+							<div id="language_dropdown" class="dropdown">
+								<button class="btn btn-xs language-toggle" type="button" id="languageDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" value="xquery">
+									xquery
+									<span class="caret"></span>
+								</button>
+								<ul class="dropdown-menu" aria-labelledby="languageDropdown">
+									<li><a href="#">xquery</a></li>
+									{
+										if (xs:int(fn:substring(xdmp:version(), 1, 1)) ge 8) then
+											<li><a href="#">javascript</a></li>
+										else ()
+									}
+								</ul>
+							</div>
+						</div>
+						<h3 class="panel-title">Run CoRB Job</h3>
+					</div>
 					<div class="panel-body">
 						<form id="spawnlib_create_form" role="form">
 							<div class="form-group">
-								<label for="urisQuery">URIs Query (XQuery):</label>
+									<label for="urisQuery">URIs Query:</label>
 								<textarea id="urisQuery" rows="5" required="required"></textarea>
 							</div>
 							<div class="form-group">
-								<label for="xformQuery">Transform Query (XQuery): </label>
+									<label for="xformQuery">Transform Query: </label>
 								<textarea id="xformQuery" rows="5" required="required"></textarea>
 							</div>
 							Throttle
@@ -115,7 +133,7 @@ xdmp:set-response-content-type("text/html"),
 									10
 									<span class="caret"></span>
 								</button>
-								<ul class="dropdown-menu" aria-labelledby="throttleDropdown" data-job-id="{{{{:id}}}}">
+									<ul class="dropdown-menu" aria-labelledby="throttleDropdown">
 									<li><a href="#">1</a></li>
 									<li><a href="#">2</a></li>
 									<li><a href="#">3</a></li>
@@ -136,8 +154,6 @@ xdmp:set-response-content-type("text/html"),
 									<button id="task_create_button" class="btn btn-primary">Run CoRB Job</button>
 								</div>
 							</div>
-							<!-- Displays Service Errors -->
-							<div id="spawn_response_div"></div><br/>
 						</form>
 
 					</div>
@@ -156,17 +172,19 @@ xdmp:set-response-content-type("text/html"),
 			<tr>
 				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
 				<td>{{{{:name}}}}</td>
+				<td>{{{{:language}}}}</td>
 				<td>{{{{:status}}}}</td>
+				<td>{{{{:inforest}}}}</td>
 				<td>{{{{:created}}}}</td>
 				<td>{{{{:progress}}}}</td>
 				<td>{{{{:total}}}}</td>
 				<td>
 					<div class="dropdown throttle-dropdown">
-						<button class="btn btn-default dropdown-toggle" type="button" id="throttleDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+							<button class="btn btn-default dropdown-toggle" type="button" id="throttleDropdown-{{{{:id}}}}" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
 							{{{{:throttle}}}}
 							<span class="caret"></span>
 						</button>
-						<ul class="dropdown-menu" aria-labelledby="throttleDropdown" data-job-id="{{{{:id}}}}">
+							<ul class="dropdown-menu" aria-labelledby="throttleDropdown-{{{{:id}}}}" data-job-id="{{{{:id}}}}">
 							<li><a href="#">1</a></li>
 							<li><a href="#">2</a></li>
 							<li><a href="#">3</a></li>
@@ -181,22 +199,20 @@ xdmp:set-response-content-type("text/html"),
 					</div>
 				</td>
 				<td><button class="btn btn-danger btn-sm kill" data-job-id="{{{{:id}}}}">kill</button></td>
-				<input type="hidden" class="uri_query" value="{{{{html:uriquery}}}}"/>
-				<input type="hidden" class="transform_query" value="{{{{html:transformquery}}}}"/>
 			</tr>
 		</script>
 		<script id="history_row_tmpl" type="text/x-jquery-tmpl">
 			<tr>
 				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
 				<td>{{{{:name}}}}</td>
+				<td>{{{{:language}}}}</td>
 				<td>{{{{:status}}}}</td>
+				<td>{{{{:inforest}}}}</td>
 				<td>{{{{:created}}}}</td>
 				<td>{{{{:completed}}}}</td>
 				<td>{{{{:progress}}}}</td>
 				<td>{{{{:total}}}}</td>
 				<td><button class="btn btn-default btn-sm remove" data-job-id="{{{{:id}}}}">remove</button></td>
-				<input type="hidden" class="uri_query" value="{{{{html:uriquery}}}}"/>
-				<input type="hidden" class="transform_query" value="{{{{html:transformquery}}}}"/>
 			</tr>
 		</script>
 
@@ -206,6 +222,7 @@ xdmp:set-response-content-type("text/html"),
 		<script src="js/lib/jsrender.js" type="text/javascript"></script>
 		<script src="js/lib/codemirror.js" type="text/javascript"></script>
 		<script src="js/lib/xquery.js" type="text/javascript"></script>
+		<script src="js/lib/javascript.js" type="text/javascript"></script>
 		<script src="js/bootstrap.min.js" type="text/javascript"></script>
 		<script src="js/spawn.js" type="text/javascript"></script>
 	</body>
