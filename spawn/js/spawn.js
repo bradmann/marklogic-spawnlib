@@ -86,6 +86,39 @@ $(document).ready(function() {
 		.fail(showError);
 	});
 
+	$('table').on('click', '.error_link', function(evt, ui) {
+		evt.preventDefault();
+		var jobID = $(this).attr('data-id');
+		$.ajax({
+			url: "progress.xqy",
+			data: {"job-id": jobID, "detail": "full"},
+			type: "GET"
+		})
+		.done(function(data) {
+			var success = data['success'];
+			var msg = data['message'];
+			if (!success) {
+				showError(null, null, msg);
+				return;
+			}
+			var job = data['results'][0];
+			var hostStatuses = job['hoststatus'];
+			$('#uriErrorTable tbody').empty();
+			$('#transformErrorTable tbody')
+			for (var host in hostStatuses) {
+				if (hostStatuses[host]['urierror']) {
+					$('#uriErrorTable tbody').append('<tr><td>' + host + '</td><td>' + hostStatuses[host]['urierror'] + '</td></tr>');
+				}
+				for (var idx in hostStatuses[host]['transformerrors']) {
+					$('#transformErrorTable tbody').append('<tr><td>' + host + '</td><td>' + hostStatuses[host]['transformerrors'][idx]['uri'] + '</td><td>' + hostStatuses[host]['transformerrors'][idx]['error'] + '</td></tr>');
+				}
+			}
+
+			$('#jobErrorDialog').modal('show');
+		})
+		.fail(showError);
+	});
+
 	$('body').on('click', 'button.remove', function(evt, ui) {
 		var id = $(this).attr('data-job-id');
 		$.ajax({

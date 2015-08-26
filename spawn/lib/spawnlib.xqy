@@ -133,7 +133,7 @@ declare variable $SINGLE-TASK-COMPLETE := '
 	return
 		(
 			map:put($progress-map, xs:string($task-number), ()),
-			if (fn:exists($error)) then
+			if (fn:exists($error) and map:count($error-map) lt 10) then
 				let $_ := map:put($error-map, fn:string($URI), $error/error:format-string/fn:string())
 				return xdmp:set-server-field("spawnlib:error-" || $job-id, $error-map)
 			else (),
@@ -161,9 +161,12 @@ declare variable $CHECK-PROGRESS := '
 	let $result-map := map:map()
 	let $_ :=
 		for $job-id in map:keys($job-id-map)
+		let $job-result-map := map:map()
 		let $progress-map := xdmp:get-server-field("spawnlib:progress-" || $job-id)
+		let $error-map := (xdmp:get-server-field("spawnlib:error-" || $job-id), map:map())[1]
 		let $count := (map:count($progress-map), 0)[1]
-		return map:put($result-map, $job-id, $count)
+		let $_ := (map:put($job-result-map, "count", $count), map:put($job-result-map, "errors", $error-map)
+		return map:put($result-map, $job-id, $job-result-map)
 	return <x>{$result-map}</x>/node()
 ';
 
@@ -512,7 +515,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 			else if ($statuses = "killed") then "killed"
 			else "complete"
 		let $name := map:get($job-name-map, fn:string($job-id))
-		let $total-progress := (fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get($progress-map, $host-id), fn:string($job-id)))), 0)[1]
+		let $total-progress := (fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get(map:get($progress-map, $host-id), fn:string($job-id)), "count"))), 0)[1]
 		let $total-tasks := (fn:sum(for $total in $job-totals return if ($total[1] eq $job-id) then $total[3] else ()), 0)[1]
 		let $created-date := fn:min(map:get($job-created-map, fn:string($job-id)))
 		let $completed-dateTimes := map:get($job-completed-map, fn:string($job-id))
@@ -564,9 +567,18 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 							let $host-total-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:total"), ("map"), $job-query)
 							let $host-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:created"), ("map"), $job-query)
 							let $host-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:host-id"), xs:QName("spawnlib:completed"), ("map"), $job-query)
-							for $host-id in map:keys($progress-map)
+							for $host-id in xdmp:hosts()
+							let $host-id := fn:string($host-id)
 							let $hostname := xdmp:host-name(xs:unsignedLong($host-id))
-							let $progress := (map:get($host-total-map, $host-id) - map:get(map:get($progress-map, $host-id), fn:string($job-id)), 0)[1]
+							let $progress := (map:get($host-total-map, $host-id) - map:get(map:get(map:get($progress-map, $host-id), fn:string($job-id)), "count"), 0)[1]
+							let $uri-error := xdmp:quote(fn:doc("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml")//spawnlib:uri-error/node())
+							let $transform-errors := (map:get(map:get(map:get($progress-map, $host-id), fn:string($job-id)), "errors"), map:map())[1]
+							let $transform-error-node := fn:doc("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml")//spawnlib:transform-errors/map:map
+							let $transform-errors :=
+								if (fn:exists($transform-error-node)) then
+									map:map($transform-error-node) + $transform-errors
+								else
+									$transform-errors
 							let $total := (map:get($host-total-map, $host-id), 0)[1]
 							return
 								element {fn:QName("http://marklogic.com/xdmp/json/basic", $hostname)} {
@@ -577,6 +589,25 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 									<created type="string">{map:get($host-created-map, $host-id)}</created>,
 									if (fn:exists(map:get($host-completed-map, $host-id))) then
 										<completed type="string">{map:get($host-completed-map, $host-id)}</completed>
+									else
+										()
+									,
+									if (fn:exists($transform-errors)) then
+										<transformerrors type="array">
+										{
+											for $uri in map:keys($transform-errors)
+											return
+												<transformerror type="object">
+													<uri type="string">{$uri}</uri>
+													<error type="string">{map:get($transform-errors, $uri)}</error>
+												</transformerror>
+										}
+										</transformerrors>	
+									else
+										()
+									,
+									if (fn:exists($uri-error) and $uri-error ne "") then
+										<urierror type="string">{$uri-error}</urierror>
 									else
 										()
 								}

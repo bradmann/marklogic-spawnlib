@@ -168,6 +168,30 @@ xdmp:set-response-content-type("text/html"),
 			</div>
 		</div>
 
+			<div class="modal fade" id="jobErrorDialog" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static">
+				<div class="modal-dialog" style="width: 1000px">
+					<div class="modal-content">
+						<div class="modal-body">
+							<h5>URI Errors</h5>
+							<table class="table table-striped" id="uriErrorTable">
+								<thead><tr><th>Host</th><th>Error</th></tr></thead>
+								<tbody>
+								</tbody>
+							</table>
+							<h5>Transform Errors</h5>
+							<table class="table table-striped" id="transformErrorTable">
+								<thead><tr><th>Host</th><th>URI</th><th>Error</th></tr></thead>
+								<tbody>
+								</tbody>
+							</table>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
 		<script id="running_row_tmpl" type="text/x-jquery-tmpl">
 			<tr>
 				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
@@ -206,7 +230,11 @@ xdmp:set-response-content-type("text/html"),
 				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
 				<td>{{{{:name}}}}</td>
 				<td>{{{{:language}}}}</td>
-				<td>{{{{:status}}}}</td>
+				{{{{if status != "error"}}}}
+					<td>{{{{:status}}}}</td>
+				{{{{else}}}}
+						<td><a href="#" class="error_link" data-id="{{{{:id}}}}">{{{{:status}}}}</a></td>
+				{{{{/if}}}}
 				<td>{{{{:inforest}}}}</td>
 				<td>{{{{:created}}}}</td>
 				<td>{{{{:completed}}}}</td>
