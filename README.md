@@ -1,5 +1,7 @@
 # marklogic-spawnlib
 Spawnlib is an XQuery library that provides [CoRB](https://github.com/marklogic/corb2)-like functionality in pure XQuery using the task server. The benefit of spawnlib is that it allows processing to occur across all nodes in the cluster, rather than one.
+
+![](https://lh3.googleusercontent.com/-6QqJu3r7XMI/VeUT5HQTTkI/AAAAAAABZiI/LGTCYGO6JEI/s2048-Ic42/spawnlib.png)
  
 Here's a "hello world" spawnlib job that can be run from qconsole:
 ```XQuery
