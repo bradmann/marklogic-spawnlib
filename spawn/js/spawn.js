@@ -104,7 +104,7 @@ $(document).ready(function() {
 			var job = data['results'][0];
 			var hostStatuses = job['hoststatus'];
 			$('#uriErrorTable tbody').empty();
-			$('#transformErrorTable tbody')
+			$('#transformErrorTable tbody').empty();
 			for (var host in hostStatuses) {
 				if (hostStatuses[host]['urierror']) {
 					$('#uriErrorTable tbody').append('<tr><td>' + host + '</td><td>' + hostStatuses[host]['urierror'] + '</td></tr>');

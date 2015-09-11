@@ -165,7 +165,8 @@ declare variable $CHECK-PROGRESS := '
 		let $progress-map := xdmp:get-server-field("spawnlib:progress-" || $job-id)
 		let $error-map := (xdmp:get-server-field("spawnlib:error-" || $job-id), map:map())[1]
 		let $count := (map:count($progress-map), 0)[1]
-		let $_ := (map:put($job-result-map, "count", $count), map:put($job-result-map, "errors", $error-map)
+		let $_ := map:put($job-result-map, "count", $count)
+		let $_ := map:put($job-result-map, "errors", $error-map)
 		return map:put($result-map, $job-id, $job-result-map)
 	return <x>{$result-map}</x>/node()
 ';
