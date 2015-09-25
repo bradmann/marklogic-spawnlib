@@ -149,7 +149,7 @@ declare variable $SINGLE-TASK-COMPLETE := '
 						xdmp:node-replace(fn:doc($progress-uri)//spawnlib:status/text(), text{"complete"}),
 					xdmp:node-insert-after(fn:doc($progress-uri)/spawnlib:job/spawnlib:status, <spawnlib:completed>{fn:current-dateTime()}</spawnlib:completed>),
 					if (map:count($error-map) gt 0) then xdmp:node-insert-child(fn:doc($progress-uri)/spawnlib:job, <spawnlib:transform-errors>{<x>{$error-map}</x>/node()}</spawnlib:transform-errors>) else (),
-					xdmp:set-server-field("spawnlib:errors-" || $job-id, ())
+					xdmp:set-server-field("spawnlib:error-" || $job-id, ())
 				)
 			else ()
 		)
