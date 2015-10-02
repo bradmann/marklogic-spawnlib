@@ -20,7 +20,6 @@ module namespace c = "http://marklogic.com/spawnlib/config";
 declare variable $c:OPTIONS :=
 	<options xmlns="xdmp:eval">
 		<inforest>true</inforest>
-		<appserver>spawnlib</appserver>
 		<authentication xmlns="xdmp:http">
 			<username>admin</username>
 			<password>ML1234</password>

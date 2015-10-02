@@ -267,14 +267,14 @@ declare function spawnlib:eval($q as xs:string, $varsmap as map:map?, $options a
 		xdmp:eval(
 			$q,
 			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
-			functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
+			functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
 		)
 	else
 		xdmp:apply(
 			xdmp:function(xs:QName("xdmp:javascript-eval")),
 			$q,
 			$varsmap,
-			functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
+			functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
 		)
 };
 
@@ -288,7 +288,7 @@ declare function spawnlib:inforest-eval($q as xs:string, $varsmap as map:map?, $
 			$q,
 			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
 			<options xmlns="xdmp:eval">
-				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				{functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
 				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 			</options>
 		)
@@ -298,7 +298,7 @@ declare function spawnlib:inforest-eval($q as xs:string, $varsmap as map:map?, $
 			$q,
 			$varsmap,
 			<options xmlns="xdmp:eval">
-				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				{functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
 				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 			</options>
 		)
@@ -314,7 +314,7 @@ declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:m
 			$q,
 			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
 			<options xmlns="xdmp:eval">
-				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				{functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
 				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 				<transaction-mode>query</transaction-mode>
 			</options>
@@ -325,7 +325,7 @@ declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:m
 			$q,
 			$varsmap,
 			<options xmlns="xdmp:eval">
-				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				{functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
 				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 				<transaction-mode>query</transaction-mode>
 			</options>
@@ -359,7 +359,7 @@ declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map,
 						xdmp:commit()
 					)
 		},
-		functx:remove-elements-deep($options, ("inforest", "appserver", "authentication", "throttle", "inforest", "language"))
+		functx:remove-elements-deep($options, ("inforest", "authentication", "throttle", "inforest", "language"))
 	)
 };
 
@@ -394,8 +394,8 @@ declare function spawnlib:farm($q as xs:string, $vars as item()*, $options as no
 			<verify-cert>false</verify-cert>
 			{functx:change-element-ns-deep($options//*:authentication, "xdmp:http", "")}
 		</options>
-	let $appserver := ($options//*:appserver/fn:string(), xdmp:server-name(xdmp:server()))[1]
-	let $port := admin:appserver-get-port(admin:get-configuration(), xdmp:server($appserver))
+	let $appserver := xdmp:server-name(xdmp:server())
+	let $port := xdmp:get-request-port()
 	let $result-map := map:map()
 	let $_ :=
 		for $host-id in $host-ids
@@ -517,7 +517,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 			else "complete"
 		let $name := map:get($job-name-map, fn:string($job-id))
 		let $total-progress := (fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get(map:get($progress-map, $host-id), fn:string($job-id)), "count"))), 0)[1]
-		let $total-tasks := (fn:sum(for $total in $job-totals return if ($total[1] eq $job-id) then $total[3] else ()), 0)[1]
+		let $total-tasks := cts:sum-aggregate(cts:element-reference(xs:QName("spawnlib:total")), "concurrent", cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-id))
 		let $created-date := fn:min(map:get($job-created-map, fn:string($job-id)))
 		let $completed-dateTimes := map:get($job-completed-map, fn:string($job-id))
 		let $inforest := (map:get($job-inforest-map, fn:string($job-id))[1], fn:false())[1]
@@ -676,7 +676,7 @@ declare function spawnlib:throttle($job-id as xs:unsignedLong?, $throttle as xs:
 };
 
 declare function spawnlib:remove() {
-	spawnlib:kill(())
+	spawnlib:remove(())
 };
 
 declare function spawnlib:remove($job-id as xs:unsignedLong?) {
