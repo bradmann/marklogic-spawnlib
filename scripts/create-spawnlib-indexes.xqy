@@ -40,20 +40,6 @@ let $indexes :=
 			<range-element-index>
 				<scalar-type>string</scalar-type>
 				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
-				<localname>uri-query</localname>
-				<collation>http://marklogic.com/collation/codepoint</collation>
-				<range-value-positions>false</range-value-positions>
-			</range-element-index>
-			<range-element-index>
-				<scalar-type>string</scalar-type>
-				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
-				<localname>transform-query</localname>
-				<collation>http://marklogic.com/collation/codepoint</collation>
-				<range-value-positions>false</range-value-positions>
-			</range-element-index>
-			<range-element-index>
-				<scalar-type>string</scalar-type>
-				<namespace-uri>http://marklogic.com/spawnlib</namespace-uri>
 				<localname>language</localname>
 				<collation>http://marklogic.com/collation/codepoint</collation>
 				<range-value-positions>false</range-value-positions>

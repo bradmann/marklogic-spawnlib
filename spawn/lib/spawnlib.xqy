@@ -490,14 +490,6 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 	let $job-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:completed"), ("map", "concurrent"), $q)
 	let $job-inforest-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:inforest"), ("map", "concurrent"), $q)
 	let $job-language-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:language"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
-	let $job-uriquery-map :=
-		if ($detail = "full") then
-			cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:uri-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
-		else ()
-	let $job-transformquery-map :=
-		if ($detail = "full") then
-			cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:transform-query"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
-		else ()
 	let $job-throttle-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:throttle"), ("map", "concurrent"), $q)
 	let $job-totals :=
 		cts:value-tuples(
@@ -522,8 +514,6 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 		let $completed-dateTimes := map:get($job-completed-map, fn:string($job-id))
 		let $inforest := (map:get($job-inforest-map, fn:string($job-id))[1], fn:false())[1]
 		let $language := (map:get($job-language-map, fn:string($job-id))[1], "xquery")[1]
-		let $uri-query := map:get($job-uriquery-map, fn:string($job-id))[1]
-		let $transform-query := map:get($job-transformquery-map, fn:string($job-id))[1]
 		let $throttle := (map:get($job-throttle-map, fn:string($job-id))[1], 10)[1]
 		order by $created-date descending
 		return
@@ -554,8 +544,8 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 				{
 					if ($detail = "full") then
 						(
-							<uriquery type="string">{$uri-query}</uriquery>,
-							<transformquery type="string">{$transform-query}</transformquery>
+							<uriquery type="string">{xdmp:directory("/spawnlib-jobs/" || $job-id || "/")[1]//spawnlib:uri-query/fn:string()}</uriquery>,
+							<transformquery type="string">{xdmp:directory("/spawnlib-jobs/" || $job-id || "/")[1]//spawnlib:transform-query/fn:string()}</transformquery>
 						)
 					else ()
 				}
