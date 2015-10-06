@@ -94,10 +94,12 @@ declare variable $INIT-JOBDOC := '
 
 	let $progress-map := map:map()
 	let $_ := for $i in (1 to xs:integer($total-tasks)) return map:put($progress-map, fn:string($i), 1)
-	let $_ := xdmp:set-server-field("spawnlib:throttle-" || fn:string($job-id), $throttle)
 	let $_ :=
 		if ($status eq "running") then
-			xdmp:set-server-field("spawnlib:progress-" || fn:string($job-id), $progress-map)
+			(
+				xdmp:set-server-field("spawnlib:progress-" || fn:string($job-id), $progress-map),
+				xdmp:set-server-field("spawnlib:throttle-" || fn:string($job-id), $throttle)
+			)
 		else
 			()
 	let $host-id := fn:string(xdmp:host())
@@ -214,6 +216,19 @@ declare variable $SET-THROTTLE := '
 					xdmp:node-replace($progress-doc//*:throttle/text(), text{$throttle})
 				)
 			else ()
+';
+
+declare variable $GET-SPAWNLIB-SERVER-FIELDS := '
+	xquery version "1.0-ml";
+	let $names := xdmp:get-server-field-names()
+	let $spawnlib-field-names := $names ! (if (fn:starts-with(., "spawnlib")) then . else ())
+	let $m := map:map()
+	let $_ :=
+		for $n in $spawnlib-field-names
+		let $f := xdmp:get-server-field($n)
+		let $v := if (fn:contains($n, "progress") or fn:contains($n, "error")) then map:count($f) else xdmp:quote($f)
+		return map:put($m, $n, $v)
+	return <x>{$m}</x>/node()
 ';
 
 declare variable $database :=
@@ -408,7 +423,10 @@ declare function spawnlib:farm($q as xs:string, $vars as item()*, $options as no
 				let $res := if (fn:string-length($res) = 0) then () else $res
 				return map:put($result-map, fn:string($host-id), $res)
 			else
-				fn:error(xs:QName("SPAWNLIB-HTTP"), "Error farming job to cluster")
+				(
+					xdmp:log(xdmp:quote($result[2])),
+					fn:error(xs:QName("SPAWNLIB-HTTP"), "Error farming job to cluster")
+				)
 	return $result-map
 };
 
