@@ -88,9 +88,25 @@ xdmp:set-response-content-type("text/html"),
 					</table>
 				</div>
 				<div class="panel panel-default">
-					<div class="panel-heading"><h3 class="panel-title">Inactive Jobs</h3></div>
+					<div class="panel-heading">
+						<h3 class="panel-title">Inactive Jobs
+							<ul class="pagination pagination-sm pull-right" style="margin: -5px 0">
+								<li>
+									<a href="#" aria-label="Previous" id="prev_page_button">
+										<span aria-hidden="true">&laquo;</span>
+									</a>
+								</li>
+								<li id="page_label" class="disabled"><a href="#">page 1 of 1</a></li>
+								<li>
+									<a href="#" aria-label="Next" id="next_page_button">
+										<span aria-hidden="true">&raquo;</span>
+									</a>
+								</li>
+							</ul>
+						</h3>
+					</div>
 					<table class="table table-striped" id="job_history_table">
-						<thead><tr><th>id</th><th>name</th><th>language</th><th>status</th><th>inforest</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th></th></tr></thead>
+						<thead><tr><th>id</th><th>name</th><th>language</th><th>status</th><th>inforest</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th><button type="button" id="removeall_button" class="btn btn-xs btn-default"><span class="glyphicon glyphicon-remove-sign" aria-hidden="true"></span> remove all</button></th></tr></thead>
 						<tbody>
 						</tbody>
 					</table>
@@ -204,7 +220,7 @@ xdmp:set-response-content-type("text/html"),
 				<td>{{{{:total}}}}</td>
 				<td>
 					<div class="dropdown throttle-dropdown">
-							<button class="btn btn-default dropdown-toggle" type="button" id="throttleDropdown-{{{{:id}}}}" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+							<button class="btn btn-default btn-xs dropdown-toggle" type="button" id="throttleDropdown-{{{{:id}}}}" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
 							{{{{:throttle}}}}
 							<span class="caret"></span>
 						</button>
@@ -222,7 +238,7 @@ xdmp:set-response-content-type("text/html"),
 						</ul>
 					</div>
 				</td>
-				<td><button class="btn btn-danger btn-sm kill" data-job-id="{{{{:id}}}}">kill</button></td>
+				<td><button class="btn btn-danger btn-xs kill" data-job-id="{{{{:id}}}}">kill</button></td>
 			</tr>
 		</script>
 		<script id="history_row_tmpl" type="text/x-jquery-tmpl">
@@ -240,7 +256,7 @@ xdmp:set-response-content-type("text/html"),
 				<td>{{{{:completed}}}}</td>
 				<td>{{{{:progress}}}}</td>
 				<td>{{{{:total}}}}</td>
-				<td><button class="btn btn-default btn-sm remove" data-job-id="{{{{:id}}}}">remove</button></td>
+				<td><button class="btn btn-default btn-xs remove" data-job-id="{{{{:id}}}}">remove</button></td>
 			</tr>
 		</script>
 

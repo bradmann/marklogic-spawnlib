@@ -103,7 +103,9 @@ declare variable $INIT-JOBDOC := '
 		else
 			()
 	let $host-id := fn:string(xdmp:host())
-	let $jobdoc := fn:doc("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml")
+	let $jobdocuri := "/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml"
+	let $_ := xdmp:lock-for-update($jobdocuri)
+	let $jobdoc := fn:doc($jobdocuri)
 	return (
 		xdmp:node-replace($jobdoc/spawnlib:job/spawnlib:status/text(), text {$status})
 		,
@@ -185,9 +187,12 @@ declare variable $POISON-PILL := '
 				xdmp:node-replace($progress-doc//*:status/text(), text{"killed"})
 			)
 	else
-		let $progress-doc := fn:doc("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml")
+		let $jobdocuri := "/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml"
+		let $progress-doc := fn:doc($jobdocuri)
 		return
 			if ($progress-doc//*:status eq "running" or $progress-doc//*:status eq "initializing") then
+				let $_ := xdmp:lock-for-update($jobdocuri)
+				return
 				(
 					xdmp:set-server-field("spawnlib:kill-" || fn:string($job-id), fn:true()),
 					xdmp:node-replace($progress-doc//*:status/text(), text{"killed"})
@@ -208,9 +213,12 @@ declare variable $SET-THROTTLE := '
 				xdmp:node-replace($progress-doc//*:throttle/text(), text{$throttle})
 			)
 	else
-		let $progress-doc := fn:doc("/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml")
+		let $jobdocuri := "/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml"
+		let $progress-doc := fn:doc($jobdocuri)
 		return
 			if ($progress-doc//*:status eq "running") then
+				let $_ := xdmp:lock-for-update($jobdocuri)
+				return
 				(
 					xdmp:set-server-field("spawnlib:throttle-" || fn:string($job-id), $throttle),
 					xdmp:node-replace($progress-doc//*:throttle/text(), text{$throttle})
@@ -474,6 +482,10 @@ declare function spawnlib:check-progress() {
 };
 
 declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as xs:string) {
+	spawnlib:check-progress($job-id, $detail, (), ())
+};
+
+declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as xs:string, $start as xs:int?, $end as xs:int?) {
 	let $job-ids :=
 		if (fn:empty($job-id)) then
 			cts:element-values(xs:QName("spawnlib:job-id"), (), (), ())
@@ -516,8 +528,40 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 			$q
 		)
 
+	let $active-job-q := cts:element-range-query(xs:QName("spawnlib:status"), "=", ("initializing", "running"))
+	let $active-jobs := cts:element-values(xs:QName("spawnlib:job-id"), (), (), $active-job-q)
+	let $inactive-job-q :=
+		cts:and-not-query(
+			cts:element-range-query(xs:QName("spawnlib:status"), "=", ("error", "killed", "complete")),
+			cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $active-jobs)
+		)
+	let $sort-sequence := cts:element-value-co-occurrences(xs:QName("spawnlib:created"), xs:QName("spawnlib:job-id"), ("concurrent", "item-order", "descending"), $inactive-job-q)
+
+	let $start :=
+		if (fn:exists($start)) then
+			$start
+		else
+			1
+
+	let $end :=
+		if (fn:exists($end)) then
+			$end
+		else
+			fn:count($sort-sequence)
+
+	let $jobs-to-return := (
+			for $job-id in $active-jobs
+			let $created := fn:min(map:get($job-created-map, fn:string($job-id)))
+			order by $created ascending
+			return $job-id
+			,
+			fn:distinct-values($sort-sequence ! (xs:unsignedLong(./cts:value[2]/fn:string())))[$start to $end]
+		)
+
+	let $total-inactive-jobs := fn:count(cts:element-values(xs:QName("spawnlib:job-id"), (), (), $inactive-job-q))
+
 	let $job-objects :=
-		for $job-id in $job-ids
+		for $job-id in $jobs-to-return
 		let $statuses := map:get($job-status-map, fn:string($job-id))
 		let $overall-status :=
 			if ($statuses = "error") then "error"
@@ -629,6 +673,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
 			<success type="boolean">true</success>
 			<results type="array">{$job-objects}</results>
+			<totalInactiveJobs type="number">{$total-inactive-jobs}</totalInactiveJobs>
 		</json>
 
 };
@@ -688,11 +733,16 @@ declare function spawnlib:remove() {
 };
 
 declare function spawnlib:remove($job-id as xs:unsignedLong?) {
+	let $inactive-job-q := cts:element-range-query(xs:QName("spawnlib:status"), "=", ("error", "killed", "complete"), ("collation=http://marklogic.com/collation/codepoint"))
+	let $job-q :=
+		cts:and-query((
+			if ($job-id) then cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-id, ("collation=http://marklogic.com/collation/codepoint")) else (),
+			$inactive-job-q
+		))
+	let $uris-to-delete := cts:uris((), (), $job-q)
 	let $remove :=
-		if (fn:exists($job-id)) then
-			xdmp:directory-delete("/spawnlib-jobs/" || fn:string($job-id) || "/")
-		else
-			xdmp:directory-delete("/spawnlib-jobs/")
+		for $uri in $uris-to-delete
+		return xdmp:document-delete($uri)
 	return
 		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
 			<success type="boolean">true</success>

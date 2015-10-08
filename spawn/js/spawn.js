@@ -1,6 +1,9 @@
 $(document).ready(function() {
 	var updateTimer = null;
 	var refreshRate = 1000;
+	var totalInactiveJobs = 0;
+	var pageSize = 10;
+	var page = 1;
 	$('#urisQuery').val('xquery version "1.0-ml";\n(: ENTER YOUR URI QUERY HERE :)');
 	$('#xformQuery').val('xquery version "1.0-ml";\ndeclare variable $URI external;\n(: ENTER YOUR TRANSFORM QUERY HERE :)');
 	var urisEditor = CodeMirror.fromTextArea($('#urisQuery')[0], {mode: "xquery", lineNumbers: true});
@@ -26,7 +29,6 @@ $(document).ready(function() {
 				return $('<div>' + html + '</div>').text();
 			});
 		$(this).html('<strong>' + $(this).text() + '</strong>');
-		clearTimeout(updateTimer);
 		refreshData();
 		$.cookie("refresh_rate", refreshRate.toString(), {expires: 999});
 	});
@@ -45,6 +47,24 @@ $(document).ready(function() {
 		xformEditor.setOption("mode", language.toLowerCase());
 	});
 
+		$('#prev_page_button').click(function(evt, ui) {
+		evt.preventDefault();
+		if (page == 1) {
+			return;
+		}
+		page -= 1;
+		refreshData();
+	});
+
+	$('#next_page_button').click(function(evt, ui) {
+		evt.preventDefault();
+		if (page >= Math.ceil(totalInactiveJobs / pageSize)) {
+			return;
+		}
+		page += 1;
+		refreshData();
+	});
+
 	$('body').on('click', 'button.kill', function(evt, ui) {
 		var id = $(this).attr('data-job-id');
 		$.ajax({
@@ -53,7 +73,6 @@ $(document).ready(function() {
 			data: {"job-id": id}
 		})
 		.done(function(data) {
-			clearTimeout(updateTimer);
 			refreshData();
 		});
 	});
@@ -127,7 +146,6 @@ $(document).ready(function() {
 			data: {"job-id": id}
 		})
 		.done(function(data) {
-			clearTimeout(updateTimer);
 			refreshData();
 		});
 	});
@@ -143,7 +161,6 @@ $(document).ready(function() {
 			data: {"job-id": id, "throttle": throttle}
 		})
 		.done(function(data) {
-			clearTimeout(updateTimer);
 			refreshData();
 		});
 	});
@@ -201,8 +218,11 @@ $(document).ready(function() {
 
 	function refreshData() {
 		if (!$('.dropdown').hasClass('open')) {
+			clearTimeout(updateTimer);
+			var start = ((page - 1) * pageSize) + 1
+			var end = page * pageSize
 			$.ajax({
-				url: "progress.xqy",
+				url: "progress.xqy?start=" + start + '&end=' + end,
 				type: "GET"
 			})
 			.done(function(data) {
@@ -218,10 +238,29 @@ $(document).ready(function() {
 				}
 				$('#running_jobs_table tbody').html($('#running_row_tmpl').render(runningJobs));
 				$('#job_history_table tbody').html($('#history_row_tmpl').render(otherJobs));
+				totalInactiveJobs = parseInt(data['totalInactiveJobs']);
+				updatePager(totalInactiveJobs);
 			}).always(function() {
 				updateTimer = setTimeout(refreshData, refreshRate);
  			});
 		}
+	}
+
+	function updatePager(total) {
+		var end = page * pageSize;
+		if (page == 1) {
+			$('#prev_page_button').parent().addClass('disabled');
+		} else {
+			$('#prev_page_button').parent().removeClass('disabled');
+		}
+
+		if (end >= total) {
+			$('#next_page_button').parent().addClass('disabled');
+		} else {
+			$('#next_page_button').parent().removeClass('disabled');
+		}
+
+		$('#page_label a').text('page ' + page + ' of ' + Math.ceil(total / pageSize))
 	}
 
 	var refresh = $.cookie("refresh_rate");
