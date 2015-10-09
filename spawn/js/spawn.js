@@ -65,6 +65,51 @@ $(document).ready(function() {
 		refreshData();
 	});
 
+	$('#debug').click(function(evt, ui) {
+		evt.preventDefault();
+		$.ajax({
+			url: 'get-server-fields.xqy'
+		})
+		.done(function(data) {
+			var success = data['success'];
+			var msg = data['message'];
+			if (!success) {
+				showError(null, null, msg);
+				return;
+			}
+			$('#serverFieldDialog table tbody').empty();
+			var results = data['results'];
+			for (var i=0; i<results.length; i++) {
+				var host = results[i]['host-id'];
+				var fields = results[i]['fields'];
+				for (var j=0; j<fields.length; j++) {
+					var html = $('<tr/>').append('<td>' + host + '</td><td>' + fields[j]['key'] + '</td><td>' + fields[j]['value'] + '</td></tr>');
+					$('#serverFieldDialog table tbody').append(html);
+				}
+			}
+			
+			$('#serverFieldDialog').modal('show');
+		})
+		.fail(showError);
+	});
+
+	$('#clearAllFieldsButton').click(function(evt, ui) {
+		evt.preventDefault();
+		$.ajax({
+			url: 'clear-server-fields.xqy'
+		})
+		.done(function(data) {
+			var success = data['success'];
+			var msg = data['message'];
+			if (!success) {
+				showError(null, null, msg);
+				return;
+			}
+			$('#serverFieldDialog table tbody').empty();
+		})
+		.fail(showError);
+	});
+
 	$('body').on('click', 'button.kill', function(evt, ui) {
 		var id = $(this).attr('data-job-id');
 		$.ajax({
@@ -243,6 +288,8 @@ $(document).ready(function() {
 			}).always(function() {
 				updateTimer = setTimeout(refreshData, refreshRate);
  			});
+		} else {
+			updateTimer = setTimeout(refreshData, 1000);
 		}
 	}
 
@@ -260,7 +307,7 @@ $(document).ready(function() {
 			$('#next_page_button').parent().removeClass('disabled');
 		}
 
-		$('#page_label a').text('page ' + page + ' of ' + Math.ceil(total / pageSize))
+		$('#page_label a').text('page ' + page + ' of ' + Math.floor((total / pageSize) + 1))
 	}
 
 	var refresh = $.cookie("refresh_rate");

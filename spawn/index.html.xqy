@@ -74,6 +74,9 @@ xdmp:set-response-content-type("text/html"),
 							</ul>
 						</li>
 					</ul>
+						<ul class="nav navbar-nav pull-right">
+							<li><a href="#debug" id="debug"><span class="glyphicon glyphicon-wrench"></span></a></li>
+						</ul>
 				</div><!-- /.navbar-collapse -->
 			</div><!-- /.container-fluid -->
 		</nav>
@@ -106,7 +109,7 @@ xdmp:set-response-content-type("text/html"),
 						</h3>
 					</div>
 					<table class="table table-striped" id="job_history_table">
-						<thead><tr><th>id</th><th>name</th><th>language</th><th>status</th><th>inforest</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th><button type="button" id="removeall_button" class="btn btn-xs btn-default"><span class="glyphicon glyphicon-remove-sign" aria-hidden="true"></span> remove all</button></th></tr></thead>
+						<thead><tr><th>id</th><th>name</th><th>language</th><th>status</th><th>inforest</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th><button type="button" id="removeall_button" class="btn btn-xs btn-default"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span> remove all</button></th></tr></thead>
 						<tbody>
 						</tbody>
 					</table>
@@ -208,6 +211,24 @@ xdmp:set-response-content-type("text/html"),
 				</div>
 			</div>
 
+			<div class="modal fade" id="serverFieldDialog" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true" data-backdrop="static">
+				<div class="modal-dialog" style="width: 1000px">
+					<div class="modal-content">
+						<div class="modal-body">
+							<h5>Server Fields <span class="pull-right"><button class="btn btn-default btn-xs" id="clearAllFieldsButton"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span> clear fields</button></span></h5>
+							<table class="table table-striped" id="uriErrorTable">
+								<thead><tr><th>Host</th><th>Field</th><th>Data</th></tr></thead>
+								<tbody>
+								</tbody>
+							</table>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
 		<script id="running_row_tmpl" type="text/x-jquery-tmpl">
 			<tr>
 				<td><a href="#" class="task_link">{{{{:id}}}}</a></td>
@@ -256,7 +277,7 @@ xdmp:set-response-content-type("text/html"),
 				<td>{{{{:completed}}}}</td>
 				<td>{{{{:progress}}}}</td>
 				<td>{{{{:total}}}}</td>
-				<td><button class="btn btn-default btn-xs remove" data-job-id="{{{{:id}}}}">remove</button></td>
+					<td><button class="btn btn-default btn-xs remove" data-job-id="{{{{:id}}}}"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span> remove</button></td>
 			</tr>
 		</script>
 

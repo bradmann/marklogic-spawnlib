@@ -239,6 +239,14 @@ declare variable $GET-SPAWNLIB-SERVER-FIELDS := '
 	return <x>{$m}</x>/node()
 ';
 
+declare variable $CLEAR-SPAWNLIB-SERVER-FIELDS := '
+	xquery version "1.0-ml";
+	let $names := xdmp:get-server-field-names()
+	let $spawnlib-field-names := $names ! (if (fn:starts-with(., "spawnlib")) then . else ())
+	for $field in $spawnlib-field-names
+	return xdmp:set-server-field($field, ())
+';
+
 declare variable $database :=
     xdmp:database()
 ;
@@ -290,14 +298,14 @@ declare function spawnlib:eval($q as xs:string, $varsmap as map:map?, $options a
 		xdmp:eval(
 			$q,
 			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
-			functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
+			functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
 		)
 	else
 		xdmp:apply(
 			xdmp:function(xs:QName("xdmp:javascript-eval")),
 			$q,
 			$varsmap,
-			functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
+			functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))
 		)
 };
 
@@ -311,7 +319,7 @@ declare function spawnlib:inforest-eval($q as xs:string, $varsmap as map:map?, $
 			$q,
 			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
 			<options xmlns="xdmp:eval">
-				{functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
 				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 			</options>
 		)
@@ -321,7 +329,7 @@ declare function spawnlib:inforest-eval($q as xs:string, $varsmap as map:map?, $
 			$q,
 			$varsmap,
 			<options xmlns="xdmp:eval">
-				{functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
 				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 			</options>
 		)
@@ -337,7 +345,7 @@ declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:m
 			$q,
 			(for $key in map:keys($varsmap) return (xs:QName($key), map:get($varsmap, $key))),
 			<options xmlns="xdmp:eval">
-				{functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
 				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 				<transaction-mode>query</transaction-mode>
 			</options>
@@ -348,7 +356,7 @@ declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:m
 			$q,
 			$varsmap,
 			<options xmlns="xdmp:eval">
-				{functx:remove-elements-deep($options, ("inforest", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
+				{functx:remove-elements-deep($options, ("inforest", "appserver", "database", "priority", "result", "authentication", "throttle", "inforest", "language"))/node()}
 				<database>{spawnlib:forest-ids-to-string($local-forests)}</database>
 				<transaction-mode>query</transaction-mode>
 			</options>
@@ -382,7 +390,7 @@ declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map,
 						xdmp:commit()
 					)
 		},
-		functx:remove-elements-deep($options, ("inforest", "authentication", "throttle", "inforest", "language"))
+		functx:remove-elements-deep($options, ("inforest", "appserver", "authentication", "throttle", "inforest", "language"))
 	)
 };
 
@@ -417,8 +425,8 @@ declare function spawnlib:farm($q as xs:string, $vars as item()*, $options as no
 			<verify-cert>false</verify-cert>
 			{functx:change-element-ns-deep($options//*:authentication, "xdmp:http", "")}
 		</options>
-	let $appserver := xdmp:server-name(xdmp:server())
-	let $port := xdmp:get-request-port()
+	let $appserver := ($options//*:appserver/fn:string(), xdmp:server-name(xdmp:server()))[1]
+	let $port := admin:appserver-get-port(admin:get-configuration(), xdmp:server($appserver))
 	let $result-map := map:map()
 	let $_ :=
 		for $host-id in $host-ids
@@ -743,6 +751,68 @@ declare function spawnlib:remove($job-id as xs:unsignedLong?) {
 	let $remove :=
 		for $uri in $uris-to-delete
 		return xdmp:document-delete($uri)
+	return
+		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
+			<success type="boolean">true</success>
+		</json>
+};
+
+declare function spawnlib:get-server-fields() {
+	let $sf-map :=
+		spawnlib:farm(
+			$GET-SPAWNLIB-SERVER-FIELDS,
+			(),
+			spawnlib:merge-options(
+				<options xmlns="xdmp:eval">
+					<priority>higher</priority>
+					<result>{fn:true()}</result>
+					<inforest>true</inforest>
+				</options>
+			)
+		)
+	let $result-map := map:map()
+	let $_ :=
+		for $host-id in map:keys($sf-map)
+		let $result := map:map(map:get($sf-map, $host-id)/node())
+		return map:put($result-map, $host-id, $result)
+	return
+		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
+			<success type="boolean">true</success>
+			<results type="array">
+			{
+				for $host-id in map:keys($result-map)
+				let $sf-map := map:get($result-map, $host-id)
+				return
+					<json type="object">
+						<host-id type="string">{$host-id}</host-id>
+						<fields type="array">
+						{
+							for $f in map:keys($sf-map)
+							return
+								<field type="object">
+									<key type="string">{$f}</key>
+									<value type="string">{map:get($sf-map, $f)}</value>
+								</field>
+						}
+						</fields>
+					</json>
+			}
+			</results>
+		</json>
+};
+
+declare function spawnlib:clear-server-fields() {
+	let $result-map :=
+		spawnlib:farm(
+			$CLEAR-SPAWNLIB-SERVER-FIELDS,
+			(),
+			spawnlib:merge-options(
+				<options xmlns="xdmp:eval">
+					<priority>higher</priority>
+					<result>{fn:true()}</result>
+				</options>
+			)
+		)
 	return
 		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
 			<success type="boolean">true</success>
