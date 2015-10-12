@@ -364,34 +364,13 @@ declare function spawnlib:inforest-eval-query($q as xs:string, $varsmap as map:m
 };
 
 declare function spawnlib:spawn-local-task($q as xs:string, $varsmap as map:map, $options as node()?) {
-	xdmp:spawn-function(
-		function() {
-			let $job-id := map:get($varsmap, "job-id")
-			let $kill := xs:boolean(xdmp:get-server-field("spawnlib:kill", fn:false())) or xs:boolean(xdmp:get-server-field("spawnlib:kill-" || $job-id, fn:false()))
-			let $priority := ($options//*:priority/fn:string(), "normal")[1]
-			let $inforest := xs:boolean(($options//*:inforest/fn:string(), "false")[1])
-			let $throttle := xdmp:get-server-field("spawnlib:throttle-" || $job-id)
-			let $language := if ($priority = "higher") then "xquery" else ($options//*:language/fn:string(), "xquery")[1]
-			let $_ := if ($throttle lt 10) then xdmp:sleep(xs:int((xs:double(1) div $throttle) * 1000)) else ()
-			return
-				if ($kill and ($priority = "normal")) then
-					()
-				else
-					(
-						try {
-							if ($inforest) then
-								spawnlib:inforest-eval($q, $varsmap, $options, $language)
-							else
-								spawnlib:eval($q, $varsmap, $options, $language)
-						} catch ($e) {
-							map:put($varsmap, "error", $e)
-						},
-						if ($job-id eq 0 or $priority eq "higher") then () else spawnlib:inforest-eval($SINGLE-TASK-COMPLETE, $varsmap, ()),
-						xdmp:commit()
-					)
-		},
-		functx:remove-elements-deep($options, ("inforest", "appserver", "authentication", "throttle", "inforest", "language"))
-	)
+	let $options := if (fn:exists($options)) then $options else <options xmlns="xdmp:eval"/>
+	return
+		xdmp:spawn(
+			"/spawn/runner.xqy",
+			(xs:QName("q"), $q, xs:QName("varsmap"), $varsmap, xs:QName("options"), $options),
+			functx:remove-elements-deep($options, ("inforest", "appserver", "authentication", "throttle", "inforest", "language"))
+		)
 };
 
 declare function spawnlib:spawn-local($q as xs:string, $vars as item()*, $options as node()?) {
@@ -557,16 +536,21 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 		else
 			fn:count($sort-sequence)
 
-	let $jobs-to-return := (
+	let $total-inactive-jobs := ()
+
+	let $jobs-to-return :=
+		if ($job-id) then
+			$job-id
+		else
+			(
 			for $job-id in $active-jobs
 			let $created := fn:min(map:get($job-created-map, fn:string($job-id)))
 			order by $created ascending
 			return $job-id
 			,
-			fn:distinct-values($sort-sequence ! (xs:unsignedLong(./cts:value[2]/fn:string())))[$start to $end]
-		)
-
-	let $total-inactive-jobs := fn:count(cts:element-values(xs:QName("spawnlib:job-id"), (), (), $inactive-job-q))
+				fn:distinct-values($sort-sequence ! (xs:unsignedLong(./cts:value[2]/fn:string())))[$start to $end],
+				xdmp:set($total-inactive-jobs, fn:count(cts:element-values(xs:QName("spawnlib:job-id"), (), (), $inactive-job-q)))
+			)
 
 	let $job-objects :=
 		for $job-id in $jobs-to-return
@@ -681,7 +665,12 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
 			<success type="boolean">true</success>
 			<results type="array">{$job-objects}</results>
-			<totalInactiveJobs type="number">{$total-inactive-jobs}</totalInactiveJobs>
+			{
+				if (fn:exists($total-inactive-jobs)) then
+					<totalInactiveJobs type="number">{$total-inactive-jobs}</totalInactiveJobs>
+				else
+					()
+			}
 		</json>
 
 };
@@ -785,6 +774,7 @@ declare function spawnlib:get-server-fields() {
 				return
 					<json type="object">
 						<host-id type="string">{$host-id}</host-id>
+						<host-name type="string">{xdmp:host-name(xs:unsignedLong($host-id))}</host-name>
 						<fields type="array">
 						{
 							for $f in map:keys($sf-map)

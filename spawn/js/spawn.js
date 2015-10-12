@@ -80,7 +80,7 @@ $(document).ready(function() {
 			$('#serverFieldDialog table tbody').empty();
 			var results = data['results'];
 			for (var i=0; i<results.length; i++) {
-				var host = results[i]['host-id'];
+				var host = results[i]['host-name'];
 				var fields = results[i]['fields'];
 				for (var j=0; j<fields.length; j++) {
 					var html = $('<tr/>').append('<td>' + host + '</td><td>' + fields[j]['key'] + '</td><td>' + fields[j]['value'] + '</td></tr>');
