@@ -177,6 +177,7 @@ declare variable $CHECK-PROGRESS := '
 
 declare variable $POISON-PILL := '
 	xquery version "1.0-ml";
+	declare namespace spawnlib = "http://marklogic.com/spawnlib";
 	declare variable $job-id external;
 	declare variable $host-id := fn:string(xdmp:host());
 	if ($job-id eq 0) then
@@ -184,7 +185,10 @@ declare variable $POISON-PILL := '
 		return
 			(
 				xdmp:set-server-field("spawnlib:kill-" || $progress-doc//*:job-id/fn:string(), fn:true()),
-				xdmp:node-replace($progress-doc//*:status/text(), text{"killed"})
+				xdmp:node-replace($progress-doc//spawnlib:status/text(), text{"killed"}),
+				xdmp:set-server-field("spawnlib:progress-" || fn:string($job-id), ()),
+				xdmp:set-server-field("spawnlib:error-" || fn:string($job-id), ()),
+				xdmp:set-server-field("spawnlib:throttle-" || fn:string($job-id), ())
 			)
 	else
 		let $jobdocuri := "/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml"
@@ -195,7 +199,10 @@ declare variable $POISON-PILL := '
 				return
 				(
 					xdmp:set-server-field("spawnlib:kill-" || fn:string($job-id), fn:true()),
-					xdmp:node-replace($progress-doc//*:status/text(), text{"killed"})
+					xdmp:node-replace($progress-doc//spawnlib:status/text(), text{"killed"}),
+					xdmp:set-server-field("spawnlib:progress-" || fn:string($job-id), ()),
+					xdmp:set-server-field("spawnlib:error-" || fn:string($job-id), ()),
+					xdmp:set-server-field("spawnlib:throttle-" || fn:string($job-id), ())
 				)
 			else ()
 ';
@@ -501,25 +508,18 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 
 	let $q := cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-ids)
 	let $job-name-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:name"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
-	let $job-totals-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:total"), ("map", "concurrent"), $q)
 	let $job-status-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:status"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
 	let $job-created-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:created"), ("map", "concurrent"), $q)
 	let $job-completed-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:completed"), ("map", "concurrent"), $q)
-	let $job-inforest-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:inforest"), ("map", "concurrent"), $q)
+	let $job-inforest-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:inforest"), ("map", "concurrent", "collation-2=http://marklogic.com/collation/codepoint"), $q)
 	let $job-language-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:language"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
 	let $job-throttle-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:throttle"), ("map", "concurrent"), $q)
-	let $job-totals :=
-		cts:value-tuples(
-			(cts:element-reference(xs:QName("spawnlib:job-id")), cts:element-reference(xs:QName("spawnlib:host-id")), cts:element-reference(xs:QName("spawnlib:total"))),
-			("concurrent"),
-			$q
-		)
 
 	let $active-job-q := cts:element-range-query(xs:QName("spawnlib:status"), "=", ("initializing", "running"))
 	let $active-jobs := cts:element-values(xs:QName("spawnlib:job-id"), (), (), $active-job-q)
 	let $inactive-job-q :=
 		cts:and-not-query(
-			cts:element-range-query(xs:QName("spawnlib:status"), "=", ("error", "killed", "complete")),
+			cts:element-range-query(xs:QName("spawnlib:status"), "=", ("error", "killed", "complete", "server shutdown")),
 			cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $active-jobs)
 		)
 	let $sort-sequence := cts:element-value-co-occurrences(xs:QName("spawnlib:created"), xs:QName("spawnlib:job-id"), ("concurrent", "item-order", "descending"), $inactive-job-q)
@@ -560,6 +560,7 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 			else if ($statuses = "initializing") then "initializing"
 			else if ($statuses = "running") then "running"
 			else if ($statuses = "killed") then "killed"
+			else if ($statuses = "server shutdown") then "server shutdown"
 			else "complete"
 		let $name := map:get($job-name-map, fn:string($job-id))
 		let $total-progress := (fn:sum(for $host-id in map:keys($progress-map) return xs:unsignedLong(map:get(map:get(map:get($progress-map, $host-id), fn:string($job-id)), "count"))), 0)[1]
