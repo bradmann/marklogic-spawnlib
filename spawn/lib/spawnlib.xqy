@@ -441,7 +441,7 @@ declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:s
 };
 
 declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:string, $name as xs:string?, $options as node()?) {
-	let $job-id := xdmp:hash64(fn:string(fn:current-dateTime()))
+	let $job-id := xdmp:hash64(fn:string(fn:current-dateTime()) || sem:uuid-string())
 	let $options := spawnlib:merge-options($options)
 	let $name := ($name, "")[1]
 	let $result-map :=
