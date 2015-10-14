@@ -515,11 +515,11 @@ declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as
 	let $job-language-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:language"), ("map", "collation-2=http://marklogic.com/collation/codepoint", "concurrent"), $q)
 	let $job-throttle-map := cts:element-value-co-occurrences(xs:QName("spawnlib:job-id"), xs:QName("spawnlib:throttle"), ("map", "concurrent"), $q)
 
-	let $active-job-q := cts:element-range-query(xs:QName("spawnlib:status"), "=", ("initializing", "running"))
+	let $active-job-q := cts:element-range-query(xs:QName("spawnlib:status"), "=", ("initializing", "running"), ("collation=http://marklogic.com/collation/codepoint"))
 	let $active-jobs := cts:element-values(xs:QName("spawnlib:job-id"), (), (), $active-job-q)
 	let $inactive-job-q :=
 		cts:and-not-query(
-			cts:element-range-query(xs:QName("spawnlib:status"), "=", ("error", "killed", "complete", "server shutdown")),
+			cts:element-range-query(xs:QName("spawnlib:status"), "=", ("error", "killed", "complete", "server shutdown"), ("collation=http://marklogic.com/collation/codepoint")),
 			cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $active-jobs)
 		)
 	let $sort-sequence := cts:element-value-co-occurrences(xs:QName("spawnlib:created"), xs:QName("spawnlib:job-id"), ("concurrent", "item-order", "descending"), $inactive-job-q)
@@ -734,7 +734,7 @@ declare function spawnlib:remove($job-id as xs:unsignedLong?) {
 	let $inactive-job-q := cts:element-range-query(xs:QName("spawnlib:status"), "=", ("error", "killed", "complete"), ("collation=http://marklogic.com/collation/codepoint"))
 	let $job-q :=
 		cts:and-query((
-			if ($job-id) then cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-id, ("collation=http://marklogic.com/collation/codepoint")) else (),
+			if ($job-id) then cts:element-range-query(xs:QName("spawnlib:job-id"), "=", $job-id) else (),
 			$inactive-job-q
 		))
 	let $uris-to-delete := cts:uris((), (), $job-q)
