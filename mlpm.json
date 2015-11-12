@@ -1,6 +1,6 @@
 {
 	"name": "marklogic-spawnlib",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Spawnlib is an XQuery library that provides CoRB-like functionality in pure XQuery using the task server. The benefit of spawnlib is that it allows processing to occur across all nodes in the cluster, rather than one.",
 	"repository": "https://github.com/bradmann/marklogic-spawnlib.git",
 	"private": false

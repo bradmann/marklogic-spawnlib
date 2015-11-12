@@ -475,6 +475,10 @@ declare function spawnlib:check-progress() {
 	spawnlib:check-progress((), "normal")
 };
 
+declare function spawnlib:check-progress($job-id as xs:unsignedLong?) {
+	spawnlib:check-progress($job-id, "normal")
+};
+
 declare function spawnlib:check-progress($job-id as xs:unsignedLong?, $detail as xs:string) {
 	spawnlib:check-progress($job-id, $detail, (), ())
 };
