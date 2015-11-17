@@ -5,6 +5,7 @@ import module namespace admin = "http://marklogic.com/xdmp/admin" at "/MarkLogic
 import module namespace functx = "http://www.functx.com" at "/MarkLogic/functx/functx-1.0-nodoc-2007-01.xqy";
 import module namespace mem = "http://xqdev.com/in-mem-update" at "/MarkLogic/appservices/utils/in-mem-update.xqy";
 import module namespace config = "http://marklogic.com/spawnlib/config" at "../config.xqy";
+import module namespace scl = "http://marklogic.com/spawnlib/connection/lib" at "spawnlib-connection-lib.xqy";
 
 declare namespace eval = "xdmp:eval";
 
@@ -402,23 +403,10 @@ declare function spawnlib:farm($q as xs:string, $vars as item()*, $options as no
 	let $_ := map:put($data-map, 'vars', $varsmap)
 	let $_ := map:put($data-map, 'options', $options)
 	let $data-string := xdmp:quote(<x>{$data-map}</x>/node())
-	let $http-options :=
-		<options xmlns="xdmp:http">
-			<data>{$data-string}</data>
-			<headers>
-				<Content-type>application/xml</Content-type>
-			</headers>
-			<verify-cert>false</verify-cert>
-			{functx:change-element-ns-deep($options//*:authentication, "xdmp:http", "")}
-		</options>
-	let $appserver := ($options//*:appserver/fn:string(), xdmp:server-name(xdmp:server()))[1]
-	let $port := admin:appserver-get-port(admin:get-configuration(), xdmp:server($appserver))
 	let $result-map := map:map()
 	let $_ :=
 		for $host-id in $host-ids
-		let $host-name := xdmp:host-name($host-id)
-		let $url := 'http://' || $host-name || ':' || fn:string($port) || '/spawn/spawn-receiver.xqy'
-		let $result := xdmp:http-post($url, $http-options)
+		let $result := scl:post($host-id, $data-string, $options)
 		return
 			if ($result[1]//*:code/fn:string() eq "200") then
 				let $res := $result[2]

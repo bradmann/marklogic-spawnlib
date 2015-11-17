@@ -109,7 +109,7 @@ xdmp:set-response-content-type("text/html"),
 						</h3>
 					</div>
 					<table class="table table-striped" id="job_history_table">
-						<thead><tr><th>id</th><th>name</th><th>language</th><th>status</th><th>inforest</th><th>created</th><th>completed</th><th>progress</th><th>total tasks</th><th><button type="button" id="removeall_button" class="btn btn-xs btn-default"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span> remove all</button></th></tr></thead>
+						<thead><tr><th>id</th><th>name</th><th>language</th><th>status</th><th>inforest</th><th>created</th><th>completed</th><th>total tasks</th><th><button type="button" id="removeall_button" class="btn btn-xs btn-default"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span> remove all</button></th></tr></thead>
 						<tbody>
 						</tbody>
 					</table>
@@ -275,7 +275,6 @@ xdmp:set-response-content-type("text/html"),
 				<td>{{{{:inforest}}}}</td>
 				<td>{{{{:created}}}}</td>
 				<td>{{{{:completed}}}}</td>
-				<td>{{{{:progress}}}}</td>
 				<td>{{{{:total}}}}</td>
 					<td><button class="btn btn-default btn-xs remove" data-job-id="{{{{:id}}}}"><span class="glyphicon glyphicon-remove" aria-hidden="true"></span> remove</button></td>
 			</tr>
