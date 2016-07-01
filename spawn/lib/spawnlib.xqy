@@ -1,7 +1,6 @@
 xquery version "1.0-ml";
 
 module namespace spawnlib = "http://marklogic.com/spawnlib";
-import module namespace admin = "http://marklogic.com/xdmp/admin" at "/MarkLogic/admin.xqy";
 import module namespace functx = "http://www.functx.com" at "/MarkLogic/functx/functx-1.0-nodoc-2007-01.xqy";
 import module namespace mem = "http://xqdev.com/in-mem-update" at "/MarkLogic/appservices/utils/in-mem-update.xqy";
 import module namespace config = "http://marklogic.com/spawnlib/config" at "../config.xqy";
@@ -14,6 +13,7 @@ declare variable $debug := fn:false();
 declare variable $CORB-SCRIPT := '
 	xquery version "1.0-ml";
 	import module namespace spawnlib = "http://marklogic.com/spawnlib" at "/spawn/lib/spawnlib.xqy";
+	declare namespace error = "http://marklogic.com/xdmp/error";
 	declare variable $uri-query external;
 	declare variable $transform-query external;
 	declare variable $options external;
@@ -50,8 +50,13 @@ declare variable $CORB-SCRIPT := '
 	let $_ := map:put($varsmap, "status", $status)
 	let $_ := map:put($varsmap, "error", $error)
 	let $init-job-doc := spawnlib:inforest-eval($spawnlib:INIT-JOBDOC, $varsmap, ())
-	for $uri at $x in $uris
-	return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri, xs:QName("job-id"), $job-id, xs:QName("task-number"), $x), $options)
+	return
+		try {
+			for $uri at $x in $uris
+			return spawnlib:spawn-local($transform-query, (xs:QName("URI"), $uri, xs:QName("job-id"), $job-id, xs:QName("task-number"), $x), $options)
+		} catch ($e) {
+			()
+		}
 ';
 
 declare variable $CREATE-JOBDOC := '
@@ -129,6 +134,7 @@ declare variable $SINGLE-TASK-COMPLETE := '
 	declare variable $job-id external;
 	declare variable $task-number external;
 	declare variable $error external := ();
+	declare variable $result external := ();
 	declare variable $URI external;
 	declare variable $host-id := fn:string(xdmp:host());
 	let $progress-uri := "/spawnlib-jobs/" || $job-id || "/" || $host-id || ".xml"
@@ -285,9 +291,7 @@ declare function spawnlib:lookup-local-forests() as xs:unsignedLong* {
 };
 
 declare function spawnlib:lookup-forests($host as xs:unsignedLong) as xs:unsignedLong* {
-    let $config := admin:get-configuration()
-    return
-      xdmp:database-forests($database)[admin:forest-get-host($config, .) eq $host]
+    xdmp:database-forests($database)[. eq xdmp:host-forests($host)]
 };
 
 declare function spawnlib:forest-ids-to-string($forests as xs:unsignedLong+) as xs:string {
@@ -435,7 +439,7 @@ declare function spawnlib:corb($uri-query as xs:string, $transform-query as xs:s
 	let $result-map :=
 		spawnlib:farm(
 			$CORB-SCRIPT,
-			(xs:QName('uri-query'), $uri-query, xs:QName('transform-query'), $transform-query, xs:QName('job-id'), $job-id, xs:QName('task-number'), 0, xs:QName('name'), $name, xs:QName('options'), $options),
+			map:map() ! (map:put(., '{}uri-query', $uri-query), map:put(., '{}transform-query', $transform-query), map:put(., '{}job-id', job-id), map:put(., '{}task-number', 0), map:put(., '{}name', $name), map:put(., '{}options', $options), .),
 			<options xmlns="xdmp:eval">
 			{
 				functx:remove-elements-deep($options, ("inforest", "result"))/node(),
@@ -685,9 +689,7 @@ declare function spawnlib:kill($job-id as xs:unsignedLong?) {
 			)
 		)
 	return
-		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
-			<success type="boolean">true</success>
-		</json>
+		object-node {"success": fn:true()}
 };
 
 declare function spawnlib:throttle($throttle as xs:integer) {
@@ -696,10 +698,10 @@ declare function spawnlib:throttle($throttle as xs:integer) {
 
 declare function spawnlib:throttle($job-id as xs:unsignedLong?, $throttle as xs:integer) {
 	if ($throttle gt 10 or $throttle lt 1) then
-		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
-			<success type="boolean">false</success>
-			<message>Throttle must be an integer between 1 and 10</message>
-		</json>
+		object-node {
+			"success": fn:false(),
+			"message": "Throttle must be an integer between 1 and 10"
+		}
 	else
 		let $throttle-map :=
 			spawnlib:farm(
@@ -713,9 +715,7 @@ declare function spawnlib:throttle($job-id as xs:unsignedLong?, $throttle as xs:
 				)
 			)
 		return
-			<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
-				<success type="boolean">true</success>
-			</json>
+			object-node {"success": fn:true()}
 };
 
 declare function spawnlib:remove() {
@@ -733,10 +733,7 @@ declare function spawnlib:remove($job-id as xs:unsignedLong?) {
 	let $remove :=
 		for $uri in $uris-to-delete
 		return xdmp:document-delete($uri)
-	return
-		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
-			<success type="boolean">true</success>
-		</json>
+	return object-node {"success": fn:true()}
 };
 
 declare function spawnlib:get-server-fields() {
@@ -758,30 +755,21 @@ declare function spawnlib:get-server-fields() {
 		let $result := map:map(map:get($sf-map, $host-id)/node())
 		return map:put($result-map, $host-id, $result)
 	return
-		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
-			<success type="boolean">true</success>
-			<results type="array">
-			{
+		object-node {
+			"success": fn:true(),
+			"results": array-node {
 				for $host-id in map:keys($result-map)
 				let $sf-map := map:get($result-map, $host-id)
-				return
-					<json type="object">
-						<host-id type="string">{$host-id}</host-id>
-						<host-name type="string">{xdmp:host-name(xs:unsignedLong($host-id))}</host-name>
-						<fields type="array">
-						{
-							for $f in map:keys($sf-map)
-							return
-								<field type="object">
-									<key type="string">{$f}</key>
-									<value type="string">{map:get($sf-map, $f)}</value>
-								</field>
-						}
-						</fields>
-					</json>
+				return object-node {
+					"host-id": $host-id,
+					"host-name": xdmp:host-name(xs:unsignedLong($host-id)),
+					"fields": array-node {
+						for $f in map:keys($sf-map)
+						return xdmp:unquote('{"' || $f || '": "' || map:get($sf-map, $f) || '"}')
+					}
+				}
 			}
-			</results>
-		</json>
+		}
 };
 
 declare function spawnlib:clear-server-fields() {
@@ -797,7 +785,5 @@ declare function spawnlib:clear-server-fields() {
 			)
 		)
 	return
-		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
-			<success type="boolean">true</success>
-		</json>
+		object-node {"success": fn:true()}
 };

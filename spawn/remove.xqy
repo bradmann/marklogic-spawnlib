@@ -8,14 +8,12 @@ declare option xdmp:update "true";
 xdmp:set-response-content-type("application/json"),
 try {
 	let $job-id := xs:unsignedLong(xdmp:get-request-field("job-id"))
-	let $remove :=
+	return
 		if ($job-id) then
 			spawnlib:remove($job-id)
 		else
 			spawnlib:remove()
-	return json:transform-to-json($remove)
-
 } catch ($e) {
 	xdmp:log(xdmp:quote($e)),
-	'{"success": false, "message": "' || $e/*:message/text() || '"}'
+	object-node {"success": fn:false(), "message": $e/*:message/fn:string()}
 }

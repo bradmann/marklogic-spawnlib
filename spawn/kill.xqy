@@ -6,14 +6,12 @@ import module namespace json="http://marklogic.com/xdmp/json" at "/MarkLogic/jso
 xdmp:set-response-content-type("application/json"),
 try {
 	let $job-id := xs:unsignedLong(xdmp:get-request-field("job-id"))
-	let $kill :=
+	return
 		if ($job-id) then
 			spawnlib:kill($job-id)
 		else
 			spawnlib:kill()
-	return json:transform-to-json($kill)
-
 } catch ($e) {
 	xdmp:log(xdmp:quote($e)),
-	'{"success": false, "message": "' || $e/*:message/text() || '"}'
+	object-node {"success": fn:false(), "message": $e/*:message/fn:string()}
 }

@@ -23,16 +23,12 @@ try {
 	let $response := spawnlib:corb($uris-query, $xform-query, "Spawn UI", $options)
 	let $id := $response[1]
 
-	let $response :=
-		<json type="object" xmlns="http://marklogic.com/xdmp/json/basic">
-			<success type="boolean">true</success>
-			<message type="string">Successfully created spawnlib task ID: {$id}</message>
-			<id type="number">{$id}</id>
-		</json>
-
-	return
-		json:transform-to-json($response)
+	return object-node {
+		"success": fn:true(),
+		"message": "Successfully created spawnlib task ID: " || $id,
+		"id": $id
+	}
 } catch ($e) {
 	xdmp:log(xdmp:quote($e)),
-	'{"success": false, "message": "' || $e/*:message/text() || '"}'
+	object-node {"success": fn:false(), "message": $e/*:message/fn:string()}
 }
